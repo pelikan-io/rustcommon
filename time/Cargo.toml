@@ -1,12 +1,12 @@
 [package]
 name = "rustcommon-time"
 version = "0.0.13"
-authors = ["Brian Martin <bmartin@twitter.com>"]
+authors = ["Brian Martin <brayniac@gmail.com>"]
 edition = "2021"
 description = "Library for getting current and recent timestamps"
-homepage = "https://github.com/twitter/rustcommon"
-repository = "https://github.com/twitter/rustcommon"
 license = "Apache-2.0"
+homepage = "https://github.com/pelikan-io/rustcommon/time"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 libc = "0.2.132"

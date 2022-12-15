@@ -2,6 +2,8 @@
 name = "rustcommon-logger"
 version = "0.1.1"
 edition = "2018"
+homepage = "https://github.com/pelikan-io/rustcommon/logger"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

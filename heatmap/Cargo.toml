@@ -1,12 +1,12 @@
 [package]
 name = "heatmap"
 version = "0.0.0"
-authors = ["Brian Martin <bmartin@twitter.com>"]
+authors = ["Brian Martin <brayniac@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Heatmap datastructure for tracking distributions across a time window"
-homepage = "https://github.com/twitter/rustcommon/heatmap"
-repository = "https://github.com/twitter/rustcommon"
+homepage = "https://github.com/pelikan-io/rustcommon/heatmap"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 histogram = { path = "../histogram" }

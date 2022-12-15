@@ -5,8 +5,8 @@ authors = ["Brian Martin <bmartin@twitter.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Generates waterfalls from heatmaps"
-homepage = "https://github.com/twitter/rustcommon/waterfall"
-repository = "https://github.com/twitter/rustcommon"
+homepage = "https://github.com/pelikan-io/rustcommon/waterfall"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 dejavu = "2.37.0"

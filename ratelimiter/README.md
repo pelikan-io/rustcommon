@@ -27,32 +27,12 @@ cargo doc --open
 
 ## Support
 
-Create a [new issue](https://github.com/twitter/rustcommon/issues/new) on GitHub.
-
-## Contributing
-
-We feel that a welcoming community is important and we ask that you follow
-Twitter's [Open Source Code of Conduct] in all interactions with the community.
+Create a [new issue](https://github.com/pelikan-io/rustcommon/issues/new) on GitHub.
 
 ## Authors
 
-* Brian Martin <bmartin@twitter.com>
+* Brian Martin <brayniac@gmail.com>
 
 A full list of [contributors] can be found on GitHub.
 
-Follow [@TwitterOSS](https://twitter.com/twitteross) on Twitter for updates.
-
-## License
-
-Copyright 2019-2020 Twitter, Inc.
-
-Licensed under the Apache License, Version 2.0:
-https://www.apache.org/licenses/LICENSE-2.0
-
-## Security Issues?
-
-Please report sensitive security issues via Twitter's bug-bounty program
-(https://hackerone.com/twitter) rather than GitHub.
-
-[contributors]: https://github.com/twitter/rustcommon/graphs/contributors?type=a
-[Open Source Code of Conduct]: https://github.com/twitter/code-of-conduct/blob/master/code-of-conduct.md
+[contributors]: https://github.com/pelikan-io/rustcommon/graphs/contributors?type=a

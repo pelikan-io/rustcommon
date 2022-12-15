@@ -2,8 +2,13 @@
 name = "rustcommon-metrics"
 version = "0.1.2"
 edition = "2021"
-authors = ["Sean Lynch <seanl@twitter.com>"]
+authors = [
+	"Brian Martin <brayniac@gmail.com>",
+	"Sean Lynch <seanl@twitter.com>",
+]
 license = "Apache-2.0"
+homepage = "https://github.com/pelikan-io/rustcommon/metrics"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 linkme = "0.3.3"
