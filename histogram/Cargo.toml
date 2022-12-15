@@ -2,8 +2,10 @@
 name = "histogram"
 version = "0.0.0"
 edition = "2021"
-authors = ["Brian Martin <bmartin@twitter.com>"]
+authors = ["Brian Martin <brayniac@gmail.com>"]
 license = "Apache-2.0"
+homepage = "https://github.com/pelikan-io/rustcommon/histogram"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 thiserror = "1.0.34"

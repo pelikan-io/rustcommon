@@ -1,12 +1,12 @@
 [package]
 name = "rustcommon-ratelimiter"
 version = "1.1.1"
-authors = ["Brian Martin <bmartin@twitter.com>"]
+authors = ["Brian Martin <brayniac@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Token bucket ratelimiter"
-homepage = "https://github.com/twitter/rustcommon/ratelimiter"
-repository = "https://github.com/twitter/rustcommon"
+homepage = "https://github.com/pelikan-io/rustcommon/ratelimiter"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 rand = "0.8.5"

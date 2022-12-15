@@ -1,12 +1,12 @@
 [package]
 name = "rustcommon-timer"
 version = "1.0.1"
-authors = ["Brian Martin <bmartin@twitter.com>"]
+authors = ["Brian Martin <brayniac@gmail.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "Timer wheel"
-homepage = "https://github.com/twitter/rustcommon/timer"
-repository = "https://github.com/twitter/rustcommon"
+homepage = "https://github.com/pelikan-io/rustcommon/timer"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 log = "0.4.17"
