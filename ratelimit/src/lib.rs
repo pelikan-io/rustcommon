@@ -103,7 +103,7 @@ impl Ratelimiter {
     /// Returns the current rate
     pub fn rate(&self) -> u64 {
         SECOND * self.quantum.load(Ordering::Relaxed)
-            / self.tick.load(Ordering::Relaxed).as_nanos() as u64
+            / self.tick.load(Ordering::Relaxed).as_nanos()
     }
 
     /// Changes the refill strategy
@@ -118,10 +118,10 @@ impl Ratelimiter {
         if now >= next {
             let strategy = Refill::try_from(self.strategy.load(Ordering::Relaxed));
             let tick = match strategy {
-                Ok(Refill::Smooth) => self.tick.load(Ordering::Relaxed).as_nanos() as u64,
+                Ok(Refill::Smooth) => self.tick.load(Ordering::Relaxed).as_nanos(),
                 Ok(Refill::Uniform) => self.uniform.sample(&mut rand::thread_rng()) as u64,
                 Ok(Refill::Normal) => self.normal.sample(&mut rand::thread_rng()) as u64,
-                Err(_) => self.tick.load(Ordering::Relaxed).as_nanos() as u64,
+                Err(_) => self.tick.load(Ordering::Relaxed).as_nanos(),
             };
             if self
                 .next

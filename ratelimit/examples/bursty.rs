@@ -3,7 +3,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 use rustcommon_ratelimiter::{Ratelimiter, Refill};
-use rustcommon_time::{DateTime, SecondsFormat};
+use clocksource::{DateTime, SecondsFormat};
 
 fn main() {
     for strategy in &[Refill::Normal, Refill::Uniform] {

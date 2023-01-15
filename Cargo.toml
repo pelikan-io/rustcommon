@@ -7,7 +7,7 @@ members = [
     "logger",
     "metrics",
     "metrics/derive",
-    "ratelimiter",
+    "ratelimit",
     "streamstats",
     "timer",
     "waterfall",
