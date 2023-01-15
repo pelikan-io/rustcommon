@@ -1,8 +1,7 @@
 # histogram
 
-A simple histogram implementation inspired by HDRHistogram and our base-2
-implementation from [ccommon]. It uses atomic counters to record increments for
-each value.
+A simple histogram implementation inspired by HDRHistogram and an new base-2
+implementation. It uses atomic counters to record increments for each value.
 
 ## Getting Started
 
@@ -23,7 +22,7 @@ Create a [new issue](https://github.com/pelikan-io/rustcommon/issues/new) on Git
 
 ## Authors
 
-* Brian Martin <brayniac@gmail.com>
+* Brian Martin <brian@pelikan.io>
 
 A full list of [contributors] can be found on GitHub.
 
