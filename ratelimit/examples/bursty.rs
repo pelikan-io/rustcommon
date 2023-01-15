@@ -1,8 +1,8 @@
-// Copyright 2019-2020 Twitter, Inc.
+// Copyright 2019 Twitter, Inc.
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use rustcommon_ratelimiter::{Ratelimiter, Refill};
+use ratelimit::{Ratelimiter, Refill};
 use clocksource::{DateTime, SecondsFormat};
 
 fn main() {
