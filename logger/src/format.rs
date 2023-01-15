@@ -4,7 +4,7 @@
 
 use crate::*;
 
-use rustcommon_time::{DateTime, SecondsFormat};
+use clocksource::{DateTime, SecondsFormat};
 
 pub type FormatFunction = fn(
     write: &mut dyn std::io::Write,

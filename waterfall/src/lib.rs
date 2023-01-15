@@ -7,8 +7,8 @@
 mod palettes;
 
 pub use palettes::Palette;
-use rustcommon_time::DateTime;
 
+use clocksource::DateTime;
 use heatmap::*;
 use image::*;
 use palettes::*;

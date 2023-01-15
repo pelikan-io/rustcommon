@@ -87,7 +87,7 @@ pub use crate::lazy::{Lazy, Relaxed};
 
 pub use rustcommon_metrics_derive::metric;
 
-pub extern crate rustcommon_time as time;
+pub extern crate clocksource as time;
 
 #[doc(hidden)]
 pub use rustcommon_metrics_derive::to_lowercase;
@@ -95,7 +95,7 @@ pub use rustcommon_metrics_derive::to_lowercase;
 #[doc(hidden)]
 pub mod export {
     pub extern crate linkme;
-    pub use rustcommon_time::{Duration, Nanoseconds};
+    pub use clocksource::{Duration, Nanoseconds};
 
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];

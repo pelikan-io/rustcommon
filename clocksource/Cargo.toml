@@ -1,11 +1,11 @@
 [package]
-name = "rustcommon-time"
-version = "0.0.13"
-authors = ["Brian Martin <brayniac@gmail.com>"]
+name = "clocksource"
+version = "0.6.0"
+authors = ["Brian Martin <brian@pelikan.io>"]
 edition = "2021"
-description = "Library for getting current and recent timestamps"
+description = "Library for reading from different system clocks"
 license = "Apache-2.0"
-homepage = "https://github.com/pelikan-io/rustcommon/time"
+homepage = "https://github.com/pelikan-io/rustcommon/clocksource"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]

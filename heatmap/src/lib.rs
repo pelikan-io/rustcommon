@@ -6,17 +6,17 @@ mod error;
 mod heatmap;
 mod window;
 
+use clocksource::Nanoseconds;
 use core::sync::atomic::AtomicU64;
-use rustcommon_time::Nanoseconds;
 
 pub use self::heatmap::Heatmap;
 pub use error::Error;
 pub use window::Window;
 
-pub type Instant = rustcommon_time::Instant<Nanoseconds<u64>>;
-pub type Duration = rustcommon_time::Duration<Nanoseconds<u64>>;
+pub type Instant = clocksource::Instant<Nanoseconds<u64>>;
+pub type Duration = clocksource::Duration<Nanoseconds<u64>>;
 
-type AtomicInstant = rustcommon_time::Instant<Nanoseconds<AtomicU64>>;
+type AtomicInstant = clocksource::Instant<Nanoseconds<AtomicU64>>;
 
 #[cfg(test)]
 mod tests {
