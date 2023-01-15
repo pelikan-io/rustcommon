@@ -9,8 +9,8 @@ homepage = "https://github.com/pelikan-io/rustcommon/heatmap"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
+clocksource = { path = "../clocksource" }
 histogram = { path = "../histogram" }
-rustcommon-time = { path = "../time" }
 thiserror = "1.0.34"
 
 [dev-dependencies]

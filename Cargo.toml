@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "atomics",
+    "clocksource",
     "heatmap",
     "histogram",
     "logger",
@@ -8,7 +9,6 @@ members = [
     "metrics/derive",
     "ratelimiter",
     "streamstats",
-    "time",
     "timer",
     "waterfall",
 ]

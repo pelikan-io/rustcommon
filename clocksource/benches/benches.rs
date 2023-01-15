@@ -2,9 +2,9 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use clocksource::*;
 use criterion::Throughput;
 use criterion::{criterion_group, criterion_main, Criterion};
-use rustcommon_time::*;
 
 fn instant_seconds_u32(c: &mut Criterion) {
     let mut group = c.benchmark_group("Instant<Seconds<u32>>");

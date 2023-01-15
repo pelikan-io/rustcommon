@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use clocksource::*;
 use histogram::Histogram;
-use rustcommon_time::*;
 
 pub struct Window<'a> {
     pub(crate) start: Instant<Nanoseconds<u64>>,

@@ -6,9 +6,9 @@
 
 #![deny(clippy::all)]
 
+use clocksource::*;
 use core::convert::TryFrom;
 use core::sync::atomic::*;
-use rustcommon_time::*;
 
 use rand_distr::{Distribution, Normal, Uniform};
 

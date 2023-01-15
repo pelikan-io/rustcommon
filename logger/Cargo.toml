@@ -9,7 +9,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 ahash = "0.8.0"
+clocksource = { path = "../clocksource" }
 rustcommon-metrics = { path = "../metrics" }
-rustcommon-time = { path = "../time" }
 log = { version = "0.4.17", features = ["std"] }
 mpmc = "0.1.6"
