@@ -1,6 +1,6 @@
 # histogram
 
-A simple histogram implementation inspired by HDRHistogram and an new base-2
+A simple histogram implementation inspired by HDRHistogram and a new base-2
 implementation. It uses atomic counters to record increments for each value.
 
 ## Getting Started
