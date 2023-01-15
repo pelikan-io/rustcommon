@@ -4,6 +4,7 @@ version = "0.7.0"
 edition = "2021"
 authors = ["Brian Martin <brian@pelikan.io>"]
 license = "Apache-2.0"
+description = "Fast and simple atomic histograms"
 homepage = "https://github.com/pelikan-io/rustcommon/histogram"
 repository = "https://github.com/pelikan-io/rustcommon"
 
