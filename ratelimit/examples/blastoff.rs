@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use ratelimit::Ratelimiter;
 use clocksource::{DateTime, SecondsFormat};
+use ratelimit::Ratelimiter;
 
 fn main() {
     let limiter = Ratelimiter::new(1, 1, 1);

@@ -67,7 +67,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// // ratelimit to 1/s with no burst capacity
     /// let ratelimiter = Ratelimiter::new(1, 1, 1);
@@ -102,8 +102,7 @@ impl Ratelimiter {
 
     /// Returns the current rate
     pub fn rate(&self) -> u64 {
-        SECOND * self.quantum.load(Ordering::Relaxed)
-            / self.tick.load(Ordering::Relaxed).as_nanos()
+        SECOND * self.quantum.load(Ordering::Relaxed) / self.tick.load(Ordering::Relaxed).as_nanos()
     }
 
     /// Changes the refill strategy
@@ -152,7 +151,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// let ratelimiter = Ratelimiter::new(1, 1, 100);
     /// for i in 0..100 {
@@ -190,7 +189,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// let ratelimiter = Ratelimiter::new(1, 1, 100);
     /// for i in 0..100 {

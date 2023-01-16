@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use ratelimit::{Ratelimiter, Refill};
 use clocksource::{DateTime, SecondsFormat};
+use ratelimit::{Ratelimiter, Refill};
 
 fn main() {
     for strategy in &[Refill::Normal, Refill::Uniform] {
