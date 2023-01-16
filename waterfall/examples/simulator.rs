@@ -5,23 +5,10 @@
 use heatmap::*;
 use rand::thread_rng;
 use rand_distr::*;
-use rustcommon_logger::*;
-use rustcommon_waterfall::*;
+use waterfall::*;
 
 fn main() {
-    let log = LogBuilder::new()
-        .output(Box::new(Stdout::new()))
-        .build()
-        .expect("failed to initialize log");
-
-    let mut drain = log.start();
-
-    std::thread::spawn(move || loop {
-        let _ = drain.flush();
-        std::thread::sleep(core::time::Duration::from_millis(100));
-    });
-
-    info!("Welcome to the simulator!");
+    println!("Welcome to the simulator!");
 
     for shape in &[
         Shape::Cauchy,
@@ -44,7 +31,7 @@ pub enum Shape {
 }
 
 pub fn simulate(shape: Shape) {
-    info!("Simulating for {:?} distribution", shape);
+    println!("Simulating for {:?} distribution", shape);
     let duration = Duration::from_secs(120);
 
     let heatmap = Heatmap::new(

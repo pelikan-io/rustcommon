@@ -1,4 +1,4 @@
-# rustcommon-waterfall
+# waterfall
 
 Waterfall visualization from heatmap data
 
@@ -31,7 +31,7 @@ Create a [new issue](https://github.com/pelikan-io/rustcommon/issues/new) on Git
 
 ## Authors
 
-* Brian Martin <brayniac@gmail.com>
+* Brian Martin <brian@pelikan.io>
 
 A full list of [contributors] can be found on GitHub.
 

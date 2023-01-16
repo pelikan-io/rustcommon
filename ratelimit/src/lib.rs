@@ -67,7 +67,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// // ratelimit to 1/s with no burst capacity
     /// let ratelimiter = Ratelimiter::new(1, 1, 1);
@@ -152,7 +152,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// let ratelimiter = Ratelimiter::new(1, 1, 100);
     /// for i in 0..100 {
@@ -190,7 +190,7 @@ impl Ratelimiter {
     /// # Examples
     ///
     /// ```
-    /// use rustcommon_ratelimiter::*;
+    /// use ratelimit::*;
     ///
     /// let ratelimiter = Ratelimiter::new(1, 1, 100);
     /// for i in 0..100 {
