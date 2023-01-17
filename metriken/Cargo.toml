@@ -16,4 +16,4 @@ heatmap = "0.7.0"
 linkme = "0.3.3"
 once_cell = "1.14.0"
 parking_lot = "0.12.1"
-metriken-derive = { path = "derive" }
+metriken-derive = "0.1.0"
