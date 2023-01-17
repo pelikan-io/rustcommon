@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use rustcommon_metrics::*;
+use metriken::*;
 
 #[metric(description = "some metric with a description")]
 static METRIC_WITH_DESCRIPTION_NO_NAME: Counter = Counter::new();
