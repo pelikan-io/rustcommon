@@ -14,7 +14,7 @@
 //!
 //! ```
 //! # // This should remain in sync with the example below.
-//! use rustcommon_metrics::*;
+//! use metriken::*;
 //! /// A counter metric named "<crate name>::COUNTER_A"
 //! #[metric]
 //! static COUNTER_A: Counter = Counter::new();
@@ -42,7 +42,7 @@
 //! Suppose we have the metrics declared in the example above.
 //! ```
 //! # // This should remain in sync with the example above.
-//! # use rustcommon_metrics::*;
+//! # use metriken::*;
 //! # /// A counter metric named "<crate name>::COUNTER_A"
 //! # #[metric]
 //! # static COUNTER_A: Counter = Counter::new();
@@ -75,7 +75,7 @@ mod gauge;
 mod heatmap;
 mod lazy;
 
-extern crate self as rustcommon_metrics;
+extern crate self as metriken;
 
 pub mod dynmetrics;
 
@@ -85,12 +85,12 @@ pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
 pub use crate::lazy::{Lazy, Relaxed};
 
-pub use rustcommon_metrics_derive::metric;
+pub use metriken_derive::metric;
 
 pub extern crate clocksource as time;
 
 #[doc(hidden)]
-pub use rustcommon_metrics_derive::to_lowercase;
+pub use metriken_derive::to_lowercase;
 
 #[doc(hidden)]
 pub mod export {

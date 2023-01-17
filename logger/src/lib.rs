@@ -57,7 +57,7 @@ use mpmc::Queue;
 
 pub(crate) type LogBuffer = Vec<u8>;
 
-use rustcommon_metrics::*;
+use metriken::*;
 
 counter!(LOG_CREATE, "logging targets initialized");
 counter!(

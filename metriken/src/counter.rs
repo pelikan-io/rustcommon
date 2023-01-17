@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// # Example
 /// ```
-/// # use rustcommon_metrics::{metric, Counter};
+/// # use metriken::{metric, Counter};
 /// #[metric(name = "my.custom.metric")]
 /// static MY_COUNTER: Counter = Counter::new();
 ///

@@ -6,7 +6,7 @@ use parking_lot::{Mutex, MutexGuard};
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
 
-use rustcommon_metrics::*;
+use metriken::*;
 
 // All tests manipulate global state. Need a mutex to ensure test execution
 // doesn't overlap.
