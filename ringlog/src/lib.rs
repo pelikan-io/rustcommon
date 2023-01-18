@@ -5,26 +5,26 @@
 //! This crate provides an asynchronous logging backend that can direct logs to
 //! one or more outputs.
 //!
-//! The core of this crate is the `AsyncLog` type, which is constructed using a
+//! The core of this crate is the `RingLog` type, which is constructed using a
 //! builder that is specific to your logging needs. After building the
-//! `AsyncLog`, it can be registered as the global logger using the `start`
+//! `RingLog`, it can be registered as the global logger using the `start`
 //! method. You will be left with a `Box<dyn Drain>` which should be
 //! periodically flushed outside of any critical path. For example, in an admin
 //! thread or dedicated logging thread.
 //!
 //! For logging to a single file, the `LogBuilder` type can be used to construct
-//! an `AsyncLog` which has low overhead, but directs log messages to a single
+//! an `RingLog` which has low overhead, but directs log messages to a single
 //! `Output`.
 //!
-//! A `SamplingLogBuilder` can be used to construct an `AsyncLog` which will
+//! A `SamplingLogBuilder` can be used to construct an `RingLog` which will
 //! filter the log messages using sampling before directing the log messages to
 //! a single `Output`.
 //!
-//! A `MultiLogBuilder` can be used to construct an `AsyncLog` which routes log
+//! A `MultiLogBuilder` can be used to construct an `RingLog` which routes log
 //! messages based on the `target` metadata of the log `Record`. If there is an
-//! `AsyncLog` registered for that specific `target`, then the log message will
-//! be routed to that instance of `AsyncLog`. Log messages that do not match any
-//! specific target will be routed to the default `AsyncLog` that has been added
+//! `RingLog` registered for that specific `target`, then the log message will
+//! be routed to that instance of `RingLog`. Log messages that do not match any
+//! specific target will be routed to the default `RingLog` that has been added
 //! to the `MultiLogBuilder`. If there is no default, messages that do not match
 //! any specific target will be simply dropped.
 //!
@@ -102,13 +102,13 @@ counter!(
 );
 
 /// A type which implements an asynchronous logging backend.
-pub struct AsyncLog {
+pub struct RingLog {
     pub(crate) logger: Box<dyn Log>,
     pub(crate) drain: Box<dyn Drain>,
     pub(crate) level_filter: LevelFilter,
 }
 
-impl AsyncLog {
+impl RingLog {
     /// Register the logger and return a type which implements `Drain`. It is
     /// up to the user to periodically call flush on the resulting drain.
     pub fn start(self) -> Box<dyn Drain> {

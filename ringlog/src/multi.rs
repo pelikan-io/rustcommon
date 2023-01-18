@@ -64,13 +64,13 @@ impl Drain for MultiLogDrain {
     }
 }
 
-/// A type to construct a multi-target `AsyncLog` which routes messages based
-/// on the log's `target` metadata to a corresponding `AsyncLog`. Targets which
-/// do not match a specific target will be routed to the default `AsyncLog` if
+/// A type to construct a multi-target `RingLog` which routes messages based
+/// on the log's `target` metadata to a corresponding `RingLog`. Targets which
+/// do not match a specific target will be routed to the default `RingLog` if
 /// one is configured.
 pub struct MultiLogBuilder {
-    default: Option<AsyncLog>,
-    targets: HashMap<String, AsyncLog>,
+    default: Option<RingLog>,
+    targets: HashMap<String, RingLog>,
     level_filter: LevelFilter,
 }
 
@@ -90,12 +90,12 @@ impl MultiLogBuilder {
         Default::default()
     }
 
-    pub fn default(mut self, log: AsyncLog) -> Self {
+    pub fn default(mut self, log: RingLog) -> Self {
         self.default = Some(log);
         self
     }
 
-    pub fn add_target(mut self, target: &str, log: AsyncLog) -> Self {
+    pub fn add_target(mut self, target: &str, log: RingLog) -> Self {
         self.targets.insert(target.to_owned(), log);
         self
     }
@@ -105,7 +105,7 @@ impl MultiLogBuilder {
         self
     }
 
-    pub fn build(mut self) -> AsyncLog {
+    pub fn build(mut self) -> RingLog {
         let mut loggers = MultiLogger {
             default: None,
             targets: HashMap::new(),
@@ -127,7 +127,7 @@ impl MultiLogBuilder {
             drains.targets.insert(name.to_owned(), log.drain);
         }
 
-        AsyncLog {
+        RingLog {
             logger: Box::new(loggers),
             drain: Box::new(drains),
             level_filter: self.level_filter,

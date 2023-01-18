@@ -33,7 +33,7 @@ impl Drain for NopLogDrain {
     }
 }
 
-/// A type to construct a basic `AsyncLog` which drops all log messages.
+/// A type to construct a basic `RingLog` which drops all log messages.
 pub struct NopLogBuilder {}
 
 impl Default for NopLogBuilder {
@@ -48,12 +48,12 @@ impl NopLogBuilder {
         Default::default()
     }
 
-    /// Consumes the builder and returns an `AsyncLog`.
-    pub fn build(self) -> AsyncLog {
+    /// Consumes the builder and returns an `RingLog`.
+    pub fn build(self) -> RingLog {
         let logger = NopLogger {};
         let drain = NopLogDrain {};
         let level_filter = logger.level_filter();
-        AsyncLog {
+        RingLog {
             logger: Box::new(logger),
             drain: Box::new(drain),
             level_filter,
