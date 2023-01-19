@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "atomics",
+    "awaken",
     "clocksource",
     "heatmap",
     "histogram",

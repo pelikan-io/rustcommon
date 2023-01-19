@@ -1,0 +1,15 @@
+[package]
+name = "awaken"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Brian Martin <brian@pelikan.io>"]
+description = "Coalescing cross-thread wakers for mio and io_uring"
+homepage = "https://github.com/pelikan-io/rustcommon"
+repository = "https://github.com/pelikan-io/rustcommon"
+
+[dependencies]
+mio = "0.8.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.139"
