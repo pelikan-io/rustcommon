@@ -103,7 +103,7 @@ impl Drain for LogDrain {
     }
 }
 
-/// A type to construct a basic `AsyncLog` which routes all log messages to a
+/// A type to construct a basic `RingLog` which routes all log messages to a
 /// single `Output`.
 pub struct LogBuilder {
     log_queue_depth: usize,
@@ -188,11 +188,11 @@ impl LogBuilder {
         }
     }
 
-    /// Consumes the builder and returns an `AsyncLog`.
-    pub fn build(self) -> Result<AsyncLog, &'static str> {
+    /// Consumes the builder and returns an `RingLog`.
+    pub fn build(self) -> Result<RingLog, &'static str> {
         let (logger, drain) = self.build_raw()?;
         let level_filter = logger.level_filter();
-        Ok(AsyncLog {
+        Ok(RingLog {
             logger: Box::new(logger),
             drain: Box::new(drain),
             level_filter,

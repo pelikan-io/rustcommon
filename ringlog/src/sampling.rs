@@ -42,7 +42,7 @@ impl Log for SamplingLogger {
     fn flush(&self) {}
 }
 
-/// A type to construct a basic `AsyncLog` which routes 1 in N log messages to a
+/// A type to construct a basic `RingLog` which routes 1 in N log messages to a
 /// single `Output`.
 pub struct SamplingLogBuilder {
     log_builder: LogBuilder,
@@ -109,11 +109,11 @@ impl SamplingLogBuilder {
         Ok((logger, log_handle))
     }
 
-    /// Consumes the builder and returns an `AsyncLog`.
-    pub fn build(self) -> Result<AsyncLog, &'static str> {
+    /// Consumes the builder and returns an `RingLog`.
+    pub fn build(self) -> Result<RingLog, &'static str> {
         let (logger, drain) = self.build_raw()?;
         let level_filter = logger.level_filter();
-        Ok(AsyncLog {
+        Ok(RingLog {
             logger: Box::new(logger),
             drain: Box::new(drain),
             level_filter,
