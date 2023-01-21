@@ -269,11 +269,10 @@ impl<T> TrackedItem<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Queues;
-    use ::net::Waker as MioWaker;
-    use ::net::{Poll, Token};
+    use crate::{Queues, Waker};
+    use mio::Waker as MioWaker;
+    use mio::{Poll, Token};
     use std::sync::Arc;
-    use waker::Waker;
 
     const WAKER_TOKEN: Token = Token(usize::MAX);
 
