@@ -1,6 +1,6 @@
 [package]
 name = "switchboard"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Brian Martin <brian@pelikan.io>"]
@@ -15,4 +15,4 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 
 [dev-dependencies]
-mio = "0.8.5"
+mio = { version = "0.8.5", features = ["os-poll"]}
