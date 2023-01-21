@@ -10,6 +10,7 @@ members = [
     "ratelimit",
     "ringlog",
     "streamstats",
+    "switchboard",
     "timer",
     "waterfall",
 ]
