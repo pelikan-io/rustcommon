@@ -5,6 +5,7 @@
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
+use std::sync::Mutex;
 
 use histogram::{Bucket, Histogram};
 
@@ -21,6 +22,7 @@ use histogram::{Bucket, Histogram};
 pub struct Heatmap {
     slices: Vec<Histogram>,
     current: AtomicUsize,
+    lock: Mutex<()>,
     next_tick: AtomicInstant,
     resolution: Duration,
     summary: Histogram,
@@ -128,12 +130,17 @@ impl Heatmap {
             slices.push(Histogram::new(m, r, n)?);
             true_span += resolution;
         }
+        // allocate one extra histogram so we always have a cleared
+        // one in the ring
+        slices.push(Histogram::new(m, r, n)?);
         slices.shrink_to_fit();
+
         let next_tick = AtomicInstant::now();
         next_tick.fetch_add(resolution, Ordering::Relaxed);
         Ok(Self {
             slices,
             current: AtomicUsize::new(0),
+            lock: Mutex::new(()),
             next_tick,
             resolution,
             summary: Histogram::new(m, r, n)?,
@@ -173,10 +180,8 @@ impl Heatmap {
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) {
         self.tick(time);
-        if let Some(slice) = self.slices.get(self.current.load(Ordering::Relaxed)) {
-            let _ = slice.increment(value, count);
-            let _ = self.summary.increment(value, count);
-        }
+        let _ = self.summary.increment(value, count);
+        let _ = self.slices[self.current.load(Ordering::Relaxed)].increment(value, count);
     }
 
     /// Return the nearest value for the requested percentile (0.0 - 100.0)
@@ -201,20 +206,37 @@ impl Heatmap {
     /// values.
     fn tick(&self, time: Instant) {
         loop {
+            // quick check to see if this data point requires ticking forward
             let next_tick = self.next_tick.load(Ordering::Relaxed);
             if time < next_tick {
                 return;
             } else {
-                self.next_tick.fetch_add(self.resolution, Ordering::Relaxed);
-                self.current.fetch_add(1, Ordering::Relaxed);
-                if self.current.load(Ordering::Relaxed) >= self.slices.len() {
-                    self.current.store(0, Ordering::Relaxed);
+                // some expiration needs to happen, let's try to acquire the lock
+                if let Ok(_lock) = self.lock.try_lock() {
+                    let current = self.current.load(Ordering::Relaxed);
+                    let mut next = current + 1;
+                    if next >= self.slices.len() {
+                        next -= self.slices.len();
+                    }
+
+                    // move current forward first, then next_tick
+                    self.current.store(next, Ordering::Relaxed);
+                    self.next_tick.fetch_add(self.resolution, Ordering::Relaxed);
+
+                    // now we have a slice to subtract and clear from the summary
+                    // this is the histogram that is one ahead of our new current
+                    // position
+                    let mut to_clear = next + 1;
+
+                    // check if we need to wrap around to the start
+                    if to_clear >= self.slices.len() {
+                        to_clear -= self.slices.len();
+                    }
+
+                    // subtract and clear
+                    let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
                 }
-                let current = self.current.load(Ordering::Relaxed);
-                if let Some(slice) = self.slices.get(current) {
-                    let _ = self.summary.subtract(slice);
-                    slice.clear();
-                }
+                // if we failed to acquire the lock, just loop
             }
         }
     }
@@ -252,6 +274,7 @@ impl Clone for Heatmap {
         Heatmap {
             slices,
             current,
+            lock: Mutex::new(()),
             next_tick,
             resolution,
             summary,
