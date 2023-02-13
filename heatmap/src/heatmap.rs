@@ -216,7 +216,6 @@ impl Heatmap {
                 // note: we use parking_lot mutex as it will not be poisoned by
                 // a thread panic while locked.
                 if let Some(_lock) = self.lock.try_lock() {
-
                     // now that we have the lock, check that we still need to
                     // tick forward
                     if time < self.next_tick.load(Ordering::Relaxed) {
