@@ -5,9 +5,9 @@
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
-use std::sync::Mutex;
 
 use histogram::{Bucket, Histogram};
+use parking_lot::Mutex;
 
 /// A `Heatmap` stores counts for timestamped values over a configured span of
 /// time.
@@ -212,14 +212,25 @@ impl Heatmap {
                 return;
             } else {
                 // some expiration needs to happen, let's try to acquire the lock
-                if let Ok(_lock) = self.lock.try_lock() {
+                //
+                // note: we use parking_lot mutex as it will not be poisoned by
+                // a thread panic while locked.
+                if let Some(_lock) = self.lock.try_lock() {
+
+                    // now that we have the lock, check that we still need to
+                    // tick forward
+                    if time < self.next_tick.load(Ordering::Relaxed) {
+                        return;
+                    }
+
+                    // calculate the index of the next current slice
                     let current = self.current.load(Ordering::Relaxed);
                     let mut next = current + 1;
                     if next >= self.slices.len() {
                         next -= self.slices.len();
                     }
 
-                    // move current forward first, then next_tick
+                    // move current and next_tick forward
                     self.current.store(next, Ordering::Relaxed);
                     self.next_tick.fetch_add(self.resolution, Ordering::Relaxed);
 
@@ -236,7 +247,12 @@ impl Heatmap {
                     // subtract and clear
                     let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
                 }
-                // if we failed to acquire the lock, just loop
+                // if we failed to acquire the lock, just loop. this does mean
+                // we busy wait if the heatmap has fallen behind by multiple
+                // ticks. we expect the typical case to be that we need to tick
+                // forward by just a single slice. in that case, if we fail to
+                // acquire the lock, we expect that the loop will terminate when
+                // we check `next_tick` at the start of the next iteration.
             }
         }
     }

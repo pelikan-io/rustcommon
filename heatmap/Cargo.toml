@@ -11,6 +11,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 [dependencies]
 clocksource = "0.6.0"
 histogram = { version = "0.7.1", path = "../histogram" }
+parking_lot = "0.12.1"
 thiserror = "1.0.34"
 
 [dev-dependencies]
