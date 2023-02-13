@@ -341,7 +341,32 @@ impl Histogram {
             .map(|v| v.load(Ordering::Relaxed))
             .enumerate()
         {
-            self.buckets[idx].fetch_sub(value, Ordering::Relaxed);
+            if value > 0 {
+                self.buckets[idx].fetch_sub(value, Ordering::Relaxed);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Subtracts the other `Histogram` from this `Histogram` and clears the
+    /// other `Histogram`. Returns an error if there are differences in the
+    /// configurations of both `Histogram`s.
+    pub fn subtract_and_clear(&self, other: &Self) -> Result<(), Error> {
+        // make sure they match
+        if self.m != other.m || self.r != other.r || self.n != other.n {
+            return Err(Error::IncompatibleHistogram);
+        }
+
+        for (idx, value) in other
+            .buckets
+            .iter()
+            .map(|v| v.swap(0, Ordering::Relaxed))
+            .enumerate()
+        {
+            if value > 0 {
+                self.buckets[idx].fetch_sub(value, Ordering::Relaxed);
+            }
         }
 
         Ok(())
@@ -413,7 +438,7 @@ impl Clone for Histogram {
     fn clone(&self) -> Self {
         // SAFETY: unwrap is safe because we already have a histogram with these
         // values for the parameters
-        let ret = Histogram::new(self.m as u32, self.r as u32, self.n as u32).unwrap();
+        let ret = Histogram::new(self.m, self.r, self.n).unwrap();
         for (id, value) in self
             .buckets
             .iter()

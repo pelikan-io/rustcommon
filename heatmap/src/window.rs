@@ -21,6 +21,6 @@ impl<'a> Window<'a> {
     }
 
     pub fn histogram(&self) -> &'a Histogram {
-        &self.histogram
+        self.histogram
     }
 }
