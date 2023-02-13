@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "atomics",
     "awaken",
     "clocksource",
     "heatmap",
@@ -9,9 +8,7 @@ members = [
     "metriken/derive",
     "ratelimit",
     "ringlog",
-    "streamstats",
     "switchboard",
-    "timer",
     "waterfall",
 ]
 
