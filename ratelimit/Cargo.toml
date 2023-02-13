@@ -9,6 +9,6 @@ homepage = "https://github.com/pelikan-io/rustcommon/ratelimit"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-clocksource = "0.6.0"
+clocksource = { version = "0.6.0", path = "../clocksource" }
 rand = "0.8.5"
 rand_distr = "0.4.3"
