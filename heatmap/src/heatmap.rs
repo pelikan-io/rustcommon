@@ -208,6 +208,15 @@ impl Heatmap {
         self.into_iter()
     }
 
+    /// Access the summary histogram of this heatmap.
+    ///
+    /// Note that concurrent modifications to the heatmap will continue to show
+    /// up in the summary histogram while it is being read so sequential
+    /// queries may not return consistent results.
+    pub fn summary(&self) -> &Histogram {
+        &self.summary
+    }
+
     // Internal function which handles reuse of older windows to store newer
     /// values.
     fn tick(&self, time: Instant) {
