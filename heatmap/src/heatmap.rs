@@ -202,6 +202,12 @@ impl Heatmap {
         self.summary.percentile(percentile).map_err(Error::from)
     }
 
+    /// Creates an iterator to iterate over the component histograms of this
+    /// heatmap.
+    pub fn iter(&self) -> Iter {
+        self.into_iter()
+    }
+
     // Internal function which handles reuse of older windows to store newer
     /// values.
     fn tick(&self, time: Instant) {
