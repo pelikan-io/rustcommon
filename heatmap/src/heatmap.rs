@@ -202,6 +202,12 @@ impl Heatmap {
         self.summary.percentile(percentile).map_err(Error::from)
     }
 
+    /// Creates an iterator to iterate over the component histograms of this
+    /// heatmap.
+    pub fn iter(&self) -> Iter {
+        self.into_iter()
+    }
+
     /// Access the summary histogram of this heatmap.
     ///
     /// Note that concurrent modifications to the heatmap will continue to show
