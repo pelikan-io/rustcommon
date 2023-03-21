@@ -391,6 +391,10 @@ impl Histogram {
     }
 
     fn high(&self, idx: usize) -> u64 {
+        if idx == self.buckets.len() - 1 {
+            return self.N;
+        }
+
         let idx = idx as u64;
         let m = self.m as u64;
         let r = self.r as u64;
