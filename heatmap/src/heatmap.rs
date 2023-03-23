@@ -311,7 +311,9 @@ impl Heatmap {
 
                     // check to make sure it's actually an old slice. A newly
                     // created heatmap will have all slices in the future.
-                    if self.slices[to_clear].start.load(Ordering::Relaxed) < self.start.load(Ordering::Relaxed) {
+                    if self.slices[to_clear].start.load(Ordering::Relaxed)
+                        < self.start.load(Ordering::Relaxed)
+                    {
                         // subtract and clear
                         let _ = self
                             .summary
