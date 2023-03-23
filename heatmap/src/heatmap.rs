@@ -143,8 +143,8 @@ impl Heatmap {
         // allocate one extra histogram so we always have a cleared
         // one in the ring
         slices.push(OwnedWindow {
-            start: AtomicInstant::new(now + true_span + resolution),
-            stop: AtomicInstant::new(now + true_span + resolution + resolution),
+            start: AtomicInstant::new(now + true_span),
+            stop: AtomicInstant::new(now + true_span + resolution),
             histogram: Histogram::new(m, r, n)?,
         });
         slices.shrink_to_fit();
@@ -306,19 +306,24 @@ impl Heatmap {
                         to_clear -= self.slices.len();
                     }
 
-                    // subtract and clear
-                    let _ = self
-                        .summary
-                        .subtract_and_clear(&self.slices[to_clear].histogram);
-
-                    self.slices[to_clear]
-                        .start
-                        .fetch_add(self.span, Ordering::Relaxed);
-                    self.slices[to_clear]
-                        .stop
-                        .fetch_add(self.span, Ordering::Relaxed);
                     self.start.fetch_add(self.resolution, Ordering::Relaxed);
                     self.stop.fetch_add(self.resolution, Ordering::Relaxed);
+
+                    // check to make sure it's actually an old slice. A newly
+                    // created heatmap will have all slices in the future.
+                    if self.slices[to_clear].start.load(Ordering::Relaxed) < self.start.load(Ordering::Relaxed) {
+                        // subtract and clear
+                        let _ = self
+                            .summary
+                            .subtract_and_clear(&self.slices[to_clear].histogram);
+
+                        self.slices[to_clear]
+                            .start
+                            .fetch_add(self.span, Ordering::Relaxed);
+                        self.slices[to_clear]
+                            .stop
+                            .fetch_add(self.span, Ordering::Relaxed);
+                    }
                 }
                 // if we failed to acquire the lock, just loop. this does mean
                 // we busy wait if the heatmap has fallen behind by multiple
