@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use crate::window::OwnedWindow;
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
@@ -20,11 +21,14 @@ use parking_lot::Mutex;
 /// This acts as a moving histogram, such that requesting a percentile returns
 /// a percentile from across the configured span of time.
 pub struct Heatmap {
-    slices: Vec<Histogram>,
+    slices: Vec<OwnedWindow>,
     current: AtomicUsize,
     lock: Mutex<()>,
-    next_tick: AtomicInstant,
+    start: AtomicInstant,
+    stop: AtomicInstant,
+    span: Duration,
     resolution: Duration,
+    next_tick: AtomicInstant,
     summary: Histogram,
 }
 
@@ -124,25 +128,40 @@ impl Heatmap {
         span: Duration,
         resolution: Duration,
     ) -> Result<Self, Error> {
+        let now = Instant::now();
+
         let mut slices = Vec::new();
         let mut true_span = Duration::from_nanos(0);
         while true_span < span {
-            slices.push(Histogram::new(m, r, n)?);
+            slices.push(OwnedWindow {
+                start: AtomicInstant::new(now + true_span),
+                stop: AtomicInstant::new(now + true_span + resolution),
+                histogram: Histogram::new(m, r, n)?,
+            });
             true_span += resolution;
         }
         // allocate one extra histogram so we always have a cleared
         // one in the ring
-        slices.push(Histogram::new(m, r, n)?);
+        slices.push(OwnedWindow {
+            start: AtomicInstant::new(now + true_span + resolution),
+            stop: AtomicInstant::new(now + true_span + resolution + resolution),
+            histogram: Histogram::new(m, r, n)?,
+        });
         slices.shrink_to_fit();
 
-        let next_tick = AtomicInstant::now();
-        next_tick.fetch_add(resolution, Ordering::Relaxed);
+        let start = AtomicInstant::new(now);
+        let stop = AtomicInstant::new(now + true_span);
+        let next_tick = AtomicInstant::new(now + resolution);
+
         Ok(Self {
             slices,
             current: AtomicUsize::new(0),
             lock: Mutex::new(()),
-            next_tick,
+            start,
+            stop,
+            span: true_span,
             resolution,
+            next_tick,
             summary: Histogram::new(m, r, n)?,
         })
     }
@@ -180,8 +199,37 @@ impl Heatmap {
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) {
         self.tick(time);
+
+        let current = self.current.load(Ordering::Relaxed);
+
+        // fast path when the time falls into the current time slice
+        if time >= self.slices[current].start.load(Ordering::Relaxed) {
+            let _ = self.summary.increment(value, count);
+            let _ = self.slices[current].histogram.increment(value, count);
+        }
+
+        // since it's before the current time slice, we need to record it into
+        // a past slice
+
+        let start = self.start.load(Ordering::Relaxed);
+        let stop = self.stop.load(Ordering::Relaxed);
+
+        // if the sample is before the heatmap start, we drop it
+        if time < start {
+            return;
+        }
+
+        // it's easier to work backwards from the current slice
+        let offset = ((stop - time).as_nanos() / self.resolution.as_nanos()) as usize;
+
+        let index = if offset > current {
+            current + self.slices.len() - offset
+        } else {
+            current - offset
+        };
+
         let _ = self.summary.increment(value, count);
-        let _ = self.slices[self.current.load(Ordering::Relaxed)].increment(value, count);
+        let _ = self.slices[index].histogram.increment(value, count);
     }
 
     /// Return the nearest value for the requested percentile (0.0 - 100.0)
@@ -259,7 +307,18 @@ impl Heatmap {
                     }
 
                     // subtract and clear
-                    let _ = self.summary.subtract_and_clear(&self.slices[to_clear]);
+                    let _ = self
+                        .summary
+                        .subtract_and_clear(&self.slices[to_clear].histogram);
+
+                    self.slices[to_clear]
+                        .start
+                        .fetch_add(self.span, Ordering::Relaxed);
+                    self.slices[to_clear]
+                        .stop
+                        .fetch_add(self.span, Ordering::Relaxed);
+                    self.start.fetch_add(self.resolution, Ordering::Relaxed);
+                    self.stop.fetch_add(self.resolution, Ordering::Relaxed);
                 }
                 // if we failed to acquire the lock, just loop. this does mean
                 // we busy wait if the heatmap has fallen behind by multiple
@@ -285,7 +344,7 @@ impl Heatmap {
             Some(Window {
                 start: self.next_tick.load(Ordering::Relaxed) - shift - self.resolution,
                 stop: self.next_tick.load(Ordering::Relaxed) - shift,
-                histogram,
+                histogram: &histogram.histogram,
             })
         } else {
             None
@@ -297,6 +356,9 @@ impl Clone for Heatmap {
     fn clone(&self) -> Self {
         let slices = self.slices.clone();
         let summary = self.summary.clone();
+        let start = AtomicInstant::new(self.start.load(Ordering::Relaxed));
+        let stop = AtomicInstant::new(self.stop.load(Ordering::Relaxed));
+        let span = self.span;
         let resolution = self.resolution;
         let current = AtomicUsize::new(self.current.load(Ordering::Relaxed));
         let next_tick = AtomicInstant::new(self.next_tick.load(Ordering::Relaxed));
@@ -305,8 +367,11 @@ impl Clone for Heatmap {
             slices,
             current,
             lock: Mutex::new(()),
-            next_tick,
+            start,
+            stop,
+            span,
             resolution,
+            next_tick,
             summary,
         }
     }
