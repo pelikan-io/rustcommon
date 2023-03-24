@@ -333,7 +333,7 @@ impl Heatmap {
                     // the tick forward by more than one window, all histograms we encounter
                     // while advancing the `idx` will need to be cleaned up. Of course, here
                     // the index will be wrapped around the ring buffer if it gets to the end.
-                    let mut idx = self.idx.load(Ordering::Relaxed) as usize;
+                    let mut idx = self.idx.load(Ordering::Relaxed);
                     while ticks_forward > 0 {
                         idx += 1;
                         if idx == self.histograms.len() {
