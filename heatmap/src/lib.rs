@@ -4,14 +4,12 @@
 
 mod error;
 mod heatmap;
-mod window;
 
 use clocksource::Nanoseconds;
 use core::sync::atomic::AtomicU64;
 
 pub use self::heatmap::Heatmap;
 pub use error::Error;
-pub use window::Window;
 
 pub type Instant = clocksource::Instant<Nanoseconds<u64>>;
 pub type Duration = clocksource::Duration<Nanoseconds<u64>>;
