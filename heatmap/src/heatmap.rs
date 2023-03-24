@@ -10,6 +10,8 @@ use core::sync::atomic::*;
 use histogram::{Bucket, Histogram};
 use parking_lot::Mutex;
 
+type UnixInstant = clocksource::UnixInstant<Nanoseconds<u64>>;
+
 /// A `Heatmap` stores counts for timestamped values over a configured span of
 /// time.
 ///
@@ -45,12 +47,55 @@ pub struct Builder {
     span: Duration,
     // the resolution in the time domain
     resolution: Duration,
+    // should we attempt to align time boundaries to the top of the second?
+    align: bool,
 }
 
 impl Builder {
     /// Consume the `Builder` and return a `Heatmap`.
     pub fn build(self) -> Result<Heatmap, Error> {
-        Heatmap::new(self.m, self.r, self.n, self.span, self.resolution)
+        let mut now = Instant::now();
+
+        if self.align {
+            let offset =
+                (UnixInstant::now() - UnixInstant::from_nanos(0)).as_nanos() % 1_000_000_000;
+            now -= Duration::from_nanos(offset);
+        }
+
+        let mut slices = Vec::new();
+        let mut true_span = Duration::from_nanos(0);
+        while true_span < self.span {
+            slices.push(OwnedWindow {
+                start: AtomicInstant::new(now + true_span),
+                stop: AtomicInstant::new(now + true_span + self.resolution),
+                histogram: Histogram::new(self.m, self.r, self.n)?,
+            });
+            true_span += self.resolution;
+        }
+        // allocate one extra histogram so we always have a cleared
+        // one in the ring
+        slices.push(OwnedWindow {
+            start: AtomicInstant::new(now + true_span),
+            stop: AtomicInstant::new(now + true_span + self.resolution),
+            histogram: Histogram::new(self.m, self.r, self.n)?,
+        });
+        slices.shrink_to_fit();
+
+        let start = AtomicInstant::new(now);
+        let stop = AtomicInstant::new(now + true_span);
+        let next_tick = AtomicInstant::new(now + self.resolution);
+
+        Ok(Heatmap {
+            slices,
+            current: AtomicUsize::new(0),
+            lock: Mutex::new(()),
+            start,
+            stop,
+            span: true_span,
+            resolution: self.resolution,
+            next_tick,
+            summary: Histogram::new(self.m, self.r, self.n)?,
+        })
     }
 
     /// Sets the width of the smallest bucket in the `Heatmap`.
@@ -99,6 +144,20 @@ impl Builder {
         self.resolution = duration;
         self
     }
+
+    /// Specify that we should attempt to align the time boundaries relative to
+    /// wall-clock second. This is done by measuring the offset between the
+    /// system monotonic clock and unix time when the heatmap is created. As
+    /// long as the system clock is not stepped after initialization, this
+    /// should remain aligned.
+    ///
+    /// Note: alignment when the resolution is > 1 second is still to the
+    /// nearest second. So for minutely intervals, the boundary may be any whole
+    /// second within the minute.
+    pub fn align(mut self, align: bool) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 impl Heatmap {
@@ -128,42 +187,14 @@ impl Heatmap {
         span: Duration,
         resolution: Duration,
     ) -> Result<Self, Error> {
-        let now = Instant::now();
+        let mut builder = Self::builder();
+        builder.m = m;
+        builder.r = r;
+        builder.n = n;
+        builder.span = span;
+        builder.resolution = resolution;
 
-        let mut slices = Vec::new();
-        let mut true_span = Duration::from_nanos(0);
-        while true_span < span {
-            slices.push(OwnedWindow {
-                start: AtomicInstant::new(now + true_span),
-                stop: AtomicInstant::new(now + true_span + resolution),
-                histogram: Histogram::new(m, r, n)?,
-            });
-            true_span += resolution;
-        }
-        // allocate one extra histogram so we always have a cleared
-        // one in the ring
-        slices.push(OwnedWindow {
-            start: AtomicInstant::new(now + true_span),
-            stop: AtomicInstant::new(now + true_span + resolution),
-            histogram: Histogram::new(m, r, n)?,
-        });
-        slices.shrink_to_fit();
-
-        let start = AtomicInstant::new(now);
-        let stop = AtomicInstant::new(now + true_span);
-        let next_tick = AtomicInstant::new(now + resolution);
-
-        Ok(Self {
-            slices,
-            current: AtomicUsize::new(0),
-            lock: Mutex::new(()),
-            start,
-            stop,
-            span: true_span,
-            resolution,
-            next_tick,
-            summary: Histogram::new(m, r, n)?,
-        })
+        builder.build()
     }
 
     /// Creates a `Builder` with the default values `m = 0`, `r = 10`, `n = 30`,
@@ -182,6 +213,7 @@ impl Heatmap {
             n: 30,
             span: Duration::from_secs(60),
             resolution: Duration::from_secs(1),
+            align: false,
         }
     }
 
