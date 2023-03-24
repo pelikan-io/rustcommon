@@ -256,7 +256,7 @@ impl Histogram {
 
         let thresholds: Vec<u64> = percentiles
             .iter()
-            .map(|v| std::cmp::min(1, (v * total as f64 / 100.0).ceil() as u64))
+            .map(|v| std::cmp::max(1, (v * total as f64 / 100.0).ceil() as u64))
             .collect();
 
         let mut max = 0;
@@ -276,7 +276,8 @@ impl Histogram {
             }
 
             seen += count;
-            while seen > thresholds[threshold_idx] && threshold_idx < thresholds.len() {
+
+            while threshold_idx < thresholds.len() && seen >= thresholds[threshold_idx] {
                 result.push(Percentile {
                     percentile: percentiles[threshold_idx],
                     bucket: self.get_bucket(bucket_idx),
@@ -284,15 +285,8 @@ impl Histogram {
 
                 threshold_idx += 1;
             }
-
-            if threshold_idx >= thresholds.len() {
-                break;
-            }
         }
 
-        // pad the results with the max bucket seen while walking the histogram
-        // this may be necessary if there is a concurrent modification that
-        // reduces the counts before we have a chance to get to that bucket
         while result.len() < percentiles.len() {
             // get the index within the percentiles vec
             let idx = percentiles.len() - result.len() - 1;

@@ -36,7 +36,7 @@ mod tests {
     }
 
     #[test]
-    fn percentiles() {
+    fn percentile() {
         let histogram = Histogram::new(0, 2, 10).unwrap();
 
         for v in 1..1024 {
@@ -44,5 +44,28 @@ mod tests {
             assert!(histogram.percentile(100.0).map(|b| b.high()).unwrap_or(0) >= v);
             assert!(histogram.percentile(100.0).map(|b| b.low()).unwrap_or(0) <= v);
         }
+    }
+
+    #[test]
+    fn percentiles() {
+        let histogram = Histogram::builder().build().unwrap();
+        histogram.increment(1, 1).unwrap();
+        histogram.increment(10000000, 1).unwrap();
+
+        let percentiles = histogram.percentiles(&[25.0, 75.0]).unwrap();
+
+        assert_eq!(histogram.percentile(25.0).map(|b| b.high()), Ok(1));
+        assert_eq!(histogram.percentile(75.0).map(|b| b.high()), Ok(10010623));
+
+        for p in &percentiles {
+            println!(
+                "{} {} {}",
+                p.percentile(),
+                p.bucket().low(),
+                p.bucket().count()
+            );
+        }
+
+        assert_eq!(percentiles.get(0).map(|b| b.bucket().high()), Some(1));
     }
 }
