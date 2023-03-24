@@ -140,7 +140,7 @@ impl Heatmap {
     ) -> Result<Self, Error> {
         let mut histograms = Vec::new();
         let mut true_span = Duration::from_nanos(0);
-        let mut span_stop = span.clone();
+        let mut span_stop = span;
         // allocate one extra histogram so we always have a cleared
         // one in the ring
         span_stop += resolution;
@@ -188,12 +188,12 @@ impl Heatmap {
         }
     }
 
-    /// Returns the number of slices stored in the `Heatmap`
+    /// Returns the true span (as `Duration`) that is tracked by the `HeatMap`
     pub fn span(&self) -> Duration {
         self.span
     }
 
-    /// Returns the number of slices stored in the `Heatmap`
+    /// Returns the `Duration` covered by a single slice of histogram
     pub fn resolution(&self) -> Duration {
         self.resolution
     }
