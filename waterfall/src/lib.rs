@@ -8,7 +8,6 @@ mod palettes;
 
 pub use palettes::Palette;
 
-use clocksource::DateTime;
 use heatmap::*;
 use image::*;
 use palettes::*;
@@ -83,7 +82,7 @@ impl WaterfallBuilder {
     fn max_weight(&self, heatmap: &heatmap::Heatmap) -> f64 {
         let mut max_weight = 0.0;
         for slice in heatmap {
-            for b in slice.histogram() {
+            for b in slice {
                 let weight = self.weight(b.count().into(), b.high() - b.low() + 1);
                 if weight > max_weight {
                     max_weight = weight;
@@ -95,16 +94,10 @@ impl WaterfallBuilder {
 
     /// Generate the waterfall from the provided heatmap
     pub fn build(self, heatmap: &heatmap::Heatmap) {
-        let now_datetime = DateTime::now();
-        let now_instant = Instant::now();
-
-        let height = heatmap.windows();
+        let height = heatmap.active_slices();
         let width = heatmap.buckets();
 
         let mut buf = RgbImage::new(width.try_into().unwrap(), height.try_into().unwrap());
-
-        // need to know the start time of the heatmap
-        let begin_instant = heatmap.into_iter().next().unwrap().start();
 
         let max_weight = self.max_weight(heatmap);
 
@@ -128,7 +121,7 @@ impl WaterfallBuilder {
 
             // build grayscale buffer
             for (y, slice) in heatmap.into_iter().enumerate() {
-                for (x, b) in slice.histogram().into_iter().enumerate() {
+                for (x, b) in slice.into_iter().enumerate() {
                     let weight = self.weight(b.count().into(), b.high() - b.low() + 1);
                     let scaled_weight = weight / max_weight;
                     let index = (scaled_weight * (colors.len() - 1) as f64).round() as u8;
@@ -154,7 +147,7 @@ impl WaterfallBuilder {
         } else {
             // set the pixels in the buffer
             for (y, slice) in heatmap.into_iter().enumerate() {
-                for (x, b) in slice.histogram().into_iter().enumerate() {
+                for (x, b) in slice.into_iter().enumerate() {
                     let weight = self.weight(b.count().into(), b.high() - b.low() + 1);
                     let scaled_weight = weight / max_weight;
                     let index = (scaled_weight * (colors.len() - 1) as f64).round() as usize;
@@ -171,7 +164,7 @@ impl WaterfallBuilder {
         // add the horizontal labels across the top
         if !label_keys.is_empty() {
             let slice = heatmap.into_iter().next().unwrap();
-            for (x, bucket) in slice.histogram().into_iter().enumerate() {
+            for (x, bucket) in slice.into_iter().enumerate() {
                 let value = bucket.high();
                 if value >= label_keys[l] {
                     if let Some(label) = labels.get(&label_keys[l]) {
@@ -192,18 +185,16 @@ impl WaterfallBuilder {
             }
         }
 
-        let offset = std::time::Duration::from_nanos((now_instant - begin_instant).as_nanos() as _);
-
-        let begin_utc = now_datetime - offset;
-        let mut begin = begin_instant;
-
         // add the timestamp labels along the left side
-        for (y, slice) in heatmap.into_iter().enumerate() {
-            let slice_start_utc = begin_utc
-                + std::time::Duration::from_nanos((slice.start() - begin_instant).as_nanos() as _);
+        let mut display_time = heatmap.created_at();
+        let mut res: usize = 0;
+        for (y, _) in heatmap.into_iter().enumerate() {
+            res += 1;
+            display_time =
+                display_time + std::time::Duration::from_nanos(heatmap.resolution().as_nanos());
 
-            if slice.start() - begin >= self.interval {
-                let label = format!("{}", slice_start_utc);
+            if heatmap.resolution().mul_f64(res as f64) >= self.interval {
+                let label = format!("{}", display_time);
                 render_text(&label, 25.0, 0, y + 2, &mut buf);
                 for x in 0..width {
                     buf.put_pixel(
@@ -212,7 +203,7 @@ impl WaterfallBuilder {
                         Rgb([255, 255, 255]),
                     );
                 }
-                begin += self.interval;
+                res = 0;
             }
         }
         buf.save(&self.output).unwrap();

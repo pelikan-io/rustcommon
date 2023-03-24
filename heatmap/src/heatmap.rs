@@ -6,6 +6,7 @@ use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
 
+use clocksource::DateTime;
 use histogram::{Bucket, Histogram};
 use parking_lot::Mutex;
 
@@ -30,6 +31,8 @@ pub struct Heatmap {
     // index in the ring buffer of the current histogram, which has the latest start time
     idx: AtomicUsize,
     // start time of the current time slice
+    create_at: DateTime,
+    first_tick: Instant,
     curr_tick: AtomicInstant,
     next_tick: AtomicInstant,
 
@@ -90,6 +93,9 @@ impl Builder {
     /// Sets the duration that is covered by the `Heatmap`.
     ///
     /// Values that are older than the duration will be dropped as they age-out.
+    /// Due to resolution constraints, the true duration covered by the heatmap
+    /// may be slightly longer than what the Builder is instructed to cover,
+    /// because the true duration has to be a multiple of resolution.
     pub fn span(mut self, duration: Duration) -> Self {
         self.span = duration;
         self
@@ -144,10 +150,10 @@ impl Heatmap {
         }
         histograms.shrink_to_fit();
 
-        let now = Instant::now();
-
-        let curr_tick = AtomicInstant::new(now);
-        let next_tick = AtomicInstant::new(now + resolution);
+        let create_at = DateTime::now();
+        let first_tick = Instant::now();
+        let curr_tick = AtomicInstant::new(first_tick);
+        let next_tick = AtomicInstant::new(first_tick + resolution);
 
         Ok(Self {
             span: true_span,
@@ -155,6 +161,8 @@ impl Heatmap {
             summary: Histogram::new(m, r, n)?,
             histograms,
             idx: AtomicUsize::new(0),
+            create_at,
+            first_tick,
             curr_tick,
             next_tick,
             lock: Mutex::new(()),
@@ -180,8 +188,18 @@ impl Heatmap {
         }
     }
 
-    /// Returns the number of windows stored in the `Heatmap`
-    pub fn windows(&self) -> usize {
+    /// Returns the number of slices stored in the `Heatmap`
+    pub fn span(&self) -> Duration {
+        self.span
+    }
+
+    /// Returns the number of slices stored in the `Heatmap`
+    pub fn resolution(&self) -> Duration {
+        self.resolution
+    }
+
+    /// Returns the number of slices stored in the `Heatmap`
+    pub fn slices(&self) -> usize {
         self.histograms.len()
     }
 
@@ -189,6 +207,20 @@ impl Heatmap {
     /// `Heatmap`
     pub fn buckets(&self) -> usize {
         self.summary.buckets()
+    }
+
+    /// Returns the number of valid and active `Histogram` slices in the `Heatmap`
+    pub fn active_slices(&self) -> usize {
+        if Instant::now() - self.first_tick > self.span {
+            self.slices()
+        } else {
+            self.idx.load(Ordering::Relaxed) + 1
+        }
+    }
+
+    /// Returns the DateTime representation of when the `HeatMapi` was created
+    pub fn created_at(&self) -> DateTime {
+        self.create_at
     }
 
     /// Increment a time-value pair by a specified count
@@ -207,16 +239,16 @@ impl Heatmap {
         // the duration belonged to a past histogram
 
         // first we calculated much before current tick the event happened
-        let behind = curr_tick.checked_duration_since(time).unwrap();
+        let behind = curr_tick.duration_since(time);
         let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
 
-        if idx_backward > self.windows() {
+        if idx_backward > self.slices() {
             // We may want to log something ehre
             return;
         }
 
         let index: usize = if idx_backward > idx {
-            idx + self.windows() - idx_backward
+            idx + self.slices() - idx_backward
         } else {
             idx - idx_backward
         };
@@ -305,7 +337,7 @@ impl Heatmap {
                     while ticks_forward > 0 {
                         idx += 1;
                         if idx == self.histograms.len() {
-                            idx -= 0;
+                            idx = 0;
                         }
                         let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
 
@@ -332,6 +364,8 @@ impl Clone for Heatmap {
         let summary = self.summary.clone();
         let histograms = self.histograms.clone();
         let idx = AtomicUsize::new(self.idx.load(Ordering::Relaxed));
+        let create_at = self.create_at;
+        let first_tick = self.first_tick;
         let curr_tick = AtomicInstant::new(self.curr_tick.load(Ordering::Relaxed));
         let next_tick = AtomicInstant::new(self.next_tick.load(Ordering::Relaxed));
 
@@ -341,6 +375,8 @@ impl Clone for Heatmap {
             summary,
             histograms,
             idx,
+            create_at,
+            first_tick,
             curr_tick,
             next_tick,
             lock: Mutex::new(()),
@@ -351,16 +387,20 @@ impl Clone for Heatmap {
 pub struct Iter<'a> {
     inner: &'a Heatmap,
     index: usize,
-    visited: usize,
+    count: usize,
 }
 
 impl<'a> Iter<'a> {
     fn new(inner: &'a Heatmap) -> Iter<'a> {
-        let index = inner.idx.load(Ordering::Relaxed);
+        let index: usize = if inner.active_slices() == inner.slices() {
+            inner.idx.load(Ordering::Relaxed) + 1
+        } else {
+            0
+        };
         Iter {
             inner,
             index,
-            visited: 0,
+            count: 0,
         }
     }
 }
@@ -369,15 +409,15 @@ impl<'a> Iterator for Iter<'a> {
     type Item = &'a Histogram;
 
     fn next(&mut self) -> Option<&'a Histogram> {
-        if self.visited >= self.inner.windows() {
+        if self.count >= self.inner.active_slices() {
             None
         } else {
             let bucket = self.inner.histograms.get(self.index);
             self.index += 1;
-            if self.index >= self.inner.windows() {
+            if self.index >= self.inner.slices() {
                 self.index = 0;
             }
-            self.visited += 1;
+            self.count += 1;
             bucket
         }
     }
