@@ -234,6 +234,7 @@ impl Heatmap {
         if time >= curr_tick {
             let _ = self.summary.increment(value, count);
             let _ = self.histograms[idx].increment(value, count);
+            return Ok(());
         }
 
         // the value belonged to a past slice of the histogram
@@ -327,9 +328,6 @@ impl Heatmap {
                 curr_tick += Duration::from_nanos(self.resolution.as_nanos() * ticks_forward);
                 next_tick = curr_tick + self.resolution;
 
-                self.curr_tick.store(curr_tick, Ordering::Relaxed);
-                self.next_tick.store(next_tick, Ordering::Relaxed);
-
                 // Note that in steady state, the next slice of the previous "current"
                 // histogram (which was marked by `idx`) is the oldest slice of histogram
                 // and therefore needs to be cleaned up. Similarly, if we need to move
@@ -345,7 +343,9 @@ impl Heatmap {
                     let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
                 }
 
-                self.idx.store(idx, Ordering::Relaxed);
+                self.idx.store(idx, Ordering::SeqCst);
+                self.curr_tick.store(curr_tick, Ordering::SeqCst);
+                self.next_tick.store(next_tick, Ordering::SeqCst);
             }
             // if we failed to acquire the lock, just loop. this does mean
             // we busy wait if the heatmap has fallen behind by multiple
