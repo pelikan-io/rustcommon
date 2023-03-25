@@ -30,7 +30,7 @@ pub struct Heatmap {
 
     // index in the ring buffer of the current histogram, which has the latest start time
     idx: AtomicUsize,
-    // start time of the current time slice
+    // timestamp for when the heatmap was created in human readable time
     create_at: DateTime,
     first_tick: Instant,
     curr_tick: AtomicInstant,
@@ -188,7 +188,7 @@ impl Heatmap {
         }
     }
 
-    /// Returns the true span (as `Duration`) that is tracked by the `HeatMap`
+    /// Returns the true span (as `Duration`) that is tracked by the `Heatmap`
     pub fn span(&self) -> Duration {
         self.span
     }
@@ -218,7 +218,7 @@ impl Heatmap {
         }
     }
 
-    /// Returns the `DateTime` representation of when the `HeatMap` was created
+    /// Returns the `DateTime` representation of when the `Heatmap` was created
     pub fn created_at(&self) -> DateTime {
         self.create_at
     }
@@ -243,7 +243,7 @@ impl Heatmap {
         let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
 
         if idx_backward > self.slices() {
-            // We may want to log something ehre
+            // We may want to log something here
             return;
         }
 
