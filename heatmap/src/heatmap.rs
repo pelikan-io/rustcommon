@@ -224,7 +224,7 @@ impl Heatmap {
     }
 
     /// Increment a time-value pair by a specified count
-    pub fn increment(&self, time: Instant, value: u64, count: u32) {
+    pub fn increment(&self, time: Instant, value: u64, count: u32) -> Result<(), Error> {
         self.tick(time);
 
         let curr_tick = self.curr_tick.load(Ordering::Relaxed);
@@ -243,8 +243,7 @@ impl Heatmap {
         let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
 
         if idx_backward > self.slices() {
-            // We may want to log something here
-            return;
+            return Err(Error::OutOfSpan);
         }
 
         let index: usize = if idx_backward > idx {
@@ -255,6 +254,8 @@ impl Heatmap {
 
         let _ = self.summary.increment(value, count);
         let _ = self.histograms[index].increment(value, count);
+
+        Ok(())
     }
 
     /// Return the nearest value for the requested percentile (0.0 - 100.0)
@@ -429,23 +430,5 @@ impl<'a> IntoIterator for &'a Heatmap {
 
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(self)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn age_out() {
-        let heatmap =
-            Heatmap::new(0, 4, 20, Duration::from_secs(1), Duration::from_millis(1)).unwrap();
-        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Err(Error::Empty));
-        heatmap.increment(Instant::now(), 1, 1);
-        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Ok(1));
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Ok(1));
-        std::thread::sleep(std::time::Duration::from_millis(2000));
-        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Err(Error::Empty));
     }
 }

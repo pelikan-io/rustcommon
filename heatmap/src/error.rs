@@ -13,9 +13,12 @@ pub enum Error {
     #[error("invalid percentile")]
     /// The provided percentile is outside of the range 0.0 - 100.0 (inclusive)
     InvalidPercentile,
-    #[error("value out of range")]
-    /// The provided value is outside of the storable range.
+    #[error("value out of bucket range")]
+    /// The provided value is outside of the representable range.
     OutOfRange,
+    #[error("value out of heatmap span")]
+    /// The provided timestamp indicates a time no longer tracked by the `Heatmap`.
+    OutOfSpan,
     #[error("invalid heatmap config")]
     /// The heatmap configuration is invalid, see docs for `Heatmap::new()` for
     /// the constraints.
