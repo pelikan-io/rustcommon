@@ -298,62 +298,61 @@ impl Heatmap {
     fn tick(&self, now: Instant) {
         loop {
             let mut next_tick = self.next_tick.load(Ordering::Relaxed);
+
             // this is the common case when a heatmap is frequently updated, such as in a busy
             // service.
             if now < next_tick {
                 return;
-            } else {
-                // some expiration needs to happen, let's try to acquire the lock
-                //
-                // note: we use parking_lot mutex as it will not be poisoned by
-                // a thread panic while locked.
-                if let Some(_lock) = self.lock.try_lock() {
-                    // now that we have the lock, check that we still need to
-                    // tick forward.
-                    if now < self.next_tick.load(Ordering::Relaxed) {
-                        // someone already finished tick maintenance
-                        return;
-                    }
-
-                    let mut curr_tick = self.curr_tick.load(Ordering::Relaxed);
-
-                    // calculate the number of histogram histogram slices that need cleanup
-                    let elapsed = now.duration_since(curr_tick);
-                    let mut ticks_forward = elapsed.as_nanos() / self.resolution.as_nanos();
-
-                    // move current and next_tick forward
-                    curr_tick += Duration::from_nanos(self.resolution.as_nanos() * ticks_forward);
-                    next_tick = curr_tick + self.resolution;
-
-                    self.curr_tick.store(curr_tick, Ordering::Relaxed);
-                    self.next_tick.store(next_tick, Ordering::Relaxed);
-
-                    // Note that in steady state, the next slice of the previous "current"
-                    // histogram (which was marked by `idx`) is the oldest slice of histogram
-                    // and therefore needs to be cleaned up. Similarly, if we need to move
-                    // the tick forward by more than one window, all histograms we encounter
-                    // while advancing the `idx` will need to be cleaned up. Of course, here
-                    // the index will be wrapped around the ring buffer if it gets to the end.
-                    let mut idx = self.idx.load(Ordering::Relaxed);
-                    while ticks_forward > 0 {
-                        idx += 1;
-                        if idx == self.histograms.len() {
-                            idx = 0;
-                        }
-                        let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
-
-                        ticks_forward -= 1
-                    }
-
-                    self.idx.store(idx, Ordering::Relaxed);
-                }
-                // if we failed to acquire the lock, just loop. this does mean
-                // we busy wait if the heatmap has fallen behind by multiple
-                // ticks. we expect the typical case to be that we need to tick
-                // forward by just a single slice. in that case, if we fail to
-                // acquire the lock, we expect that the loop will terminate when
-                // we check `next_tick` at the start of the next iteration.
             }
+
+            // some expiration needs to happen, let's try to acquire the lock
+            //
+            // note: we use parking_lot mutex as it will not be poisoned by
+            // a thread panic while locked.
+            if let Some(_lock) = self.lock.try_lock() {
+                // now that we have the lock, check that we still need to
+                // tick forward.
+                if now < self.next_tick.load(Ordering::Relaxed) {
+                    // someone already finished tick maintenance
+                    return;
+                }
+
+                let mut curr_tick = self.curr_tick.load(Ordering::Relaxed);
+
+                // calculate the number of histogram histogram slices that need cleanup
+                let elapsed = now.duration_since(curr_tick);
+                let ticks_forward = elapsed.as_nanos() / self.resolution.as_nanos();
+
+                // move current and next_tick forward
+                curr_tick += Duration::from_nanos(self.resolution.as_nanos() * ticks_forward);
+                next_tick = curr_tick + self.resolution;
+
+                self.curr_tick.store(curr_tick, Ordering::Relaxed);
+                self.next_tick.store(next_tick, Ordering::Relaxed);
+
+                // Note that in steady state, the next slice of the previous "current"
+                // histogram (which was marked by `idx`) is the oldest slice of histogram
+                // and therefore needs to be cleaned up. Similarly, if we need to move
+                // the tick forward by more than one window, all histograms we encounter
+                // while advancing the `idx` will need to be cleaned up. Of course, here
+                // the index will be wrapped around the ring buffer if it gets to the end.
+                let mut idx = self.idx.load(Ordering::Relaxed);
+                for _ in 0..ticks_forward {
+                    idx += 1;
+                    if idx == self.histograms.len() {
+                        idx = 0;
+                    }
+                    let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
+                }
+
+                self.idx.store(idx, Ordering::Relaxed);
+            }
+            // if we failed to acquire the lock, just loop. this does mean
+            // we busy wait if the heatmap has fallen behind by multiple
+            // ticks. we expect the typical case to be that we need to tick
+            // forward by just a single slice. in that case, if we fail to
+            // acquire the lock, we expect that the loop will terminate when
+            // we check `next_tick` at the start of the next iteration.
         }
     }
 }
@@ -430,5 +429,23 @@ impl<'a> IntoIterator for &'a Heatmap {
 
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn age_out() {
+        let heatmap =
+            Heatmap::new(0, 4, 20, Duration::from_secs(1), Duration::from_millis(1)).unwrap();
+        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Err(Error::Empty));
+        heatmap.increment(Instant::now(), 1, 1).unwrap();
+        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Ok(1));
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Ok(1));
+        std::thread::sleep(std::time::Duration::from_millis(2000));
+        assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Err(Error::Empty));
     }
 }

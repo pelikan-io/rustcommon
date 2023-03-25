@@ -64,7 +64,7 @@ pub fn simulate(shape: Shape) {
         };
         let value = value.floor() as u64;
         if value != 0 {
-            heatmap.increment(Instant::now(), value, 1);
+            heatmap.increment(Instant::now(), value, 1).unwrap();
         }
     }
 
