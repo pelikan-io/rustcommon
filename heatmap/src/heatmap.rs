@@ -218,7 +218,7 @@ impl Heatmap {
         }
     }
 
-    /// Returns the DateTime representation of when the `HeatMapi` was created
+    /// Returns the `DateTime` representation of when the `HeatMap` was created
     pub fn created_at(&self) -> DateTime {
         self.create_at
     }
@@ -236,7 +236,7 @@ impl Heatmap {
             let _ = self.histograms[idx].increment(value, count);
         }
 
-        // the duration belonged to a past histogram
+        // the value belonged to a past slice of the histogram
 
         // first we calculated much before current tick the event happened
         let behind = curr_tick.duration_since(time);
@@ -317,7 +317,7 @@ impl Heatmap {
                     let mut curr_tick = self.curr_tick.load(Ordering::Relaxed);
 
                     // calculate the number of histogram histogram slices that need cleanup
-                    let elapsed = now.checked_duration_since(curr_tick).unwrap();
+                    let elapsed = now.duration_since(curr_tick);
                     let mut ticks_forward = elapsed.as_nanos() / self.resolution.as_nanos();
 
                     // move current and next_tick forward
