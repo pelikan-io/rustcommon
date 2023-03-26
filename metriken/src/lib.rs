@@ -260,7 +260,7 @@ impl MetricEntry {
 
     /// Get the name of this metric.
     pub fn name(&self) -> &str {
-        &*self.name
+        &self.name
     }
 
     /// Get the namespace of this metric.
@@ -330,7 +330,7 @@ impl Metrics {
     /// A list containing all metrics that were registered via the [`metric`]
     /// attribute macro.
     pub fn static_metrics(&self) -> &'static [MetricEntry] {
-        &*crate::export::METRICS
+        &crate::export::METRICS
     }
 
     /// A list containing all metrics that were dynamically registered.
