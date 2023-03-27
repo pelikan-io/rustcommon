@@ -34,13 +34,8 @@ impl Drain for NopLogDrain {
 }
 
 /// A type to construct a basic `RingLog` which drops all log messages.
+#[derive(Default)]
 pub struct NopLogBuilder {}
-
-impl Default for NopLogBuilder {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl NopLogBuilder {
     /// Create a new log builder.

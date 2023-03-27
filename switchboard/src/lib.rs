@@ -98,6 +98,7 @@ impl<T, U> Queues<T, U> {
     /// NOTE: the return vectors maintain the ordering of the wakers that were
     /// provided. Care must be taken to ensure that the corresponding queues are
     /// given to the event loop with the corresponding waker.
+    #[allow(clippy::type_complexity)]
     pub fn new<A: AsRef<[Arc<Waker>]>, B: AsRef<[Arc<Waker>]>>(
         a_wakers: A,
         b_wakers: B,
