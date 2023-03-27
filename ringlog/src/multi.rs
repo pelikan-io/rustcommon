@@ -18,7 +18,7 @@ impl MultiLogger {
         self.targets
             .get(target)
             .map(|t| t.as_ref())
-            .or_else(|| self.default.as_deref())
+            .or(self.default.as_deref())
     }
 }
 

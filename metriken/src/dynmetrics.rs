@@ -203,6 +203,6 @@ impl<M: Metric> Deref for DynBoxedMetric<M> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &*self.metric
+        &self.metric
     }
 }

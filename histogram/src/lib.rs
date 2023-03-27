@@ -36,13 +36,89 @@ mod tests {
     }
 
     #[test]
-    fn percentiles() {
+    fn percentiles_1() {
         let histogram = Histogram::new(0, 2, 10).unwrap();
 
         for v in 1..1024 {
             assert!(histogram.increment(v, 1).is_ok());
+            assert_eq!(histogram.percentile(0.0).map(|b| b.high()), Ok(1));
+
             assert!(histogram.percentile(100.0).map(|b| b.high()).unwrap_or(0) >= v);
             assert!(histogram.percentile(100.0).map(|b| b.low()).unwrap_or(0) <= v);
         }
+
+        let percentiles: Vec<(u64, u64)> = histogram
+            .percentiles(&[1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0])
+            .unwrap()
+            .iter()
+            .map(|p| (p.bucket().low(), p.bucket().high()))
+            .collect();
+
+        // this histogram config doesn't have much resolution, which results in
+        // the upper percentiles falling into buckets that are rather wide
+        assert_eq!(
+            &percentiles,
+            &[
+                (8, 11),
+                (96, 127),
+                (256, 383),
+                (512, 767),
+                (768, 1023),
+                (768, 1023),
+                (768, 1023)
+            ]
+        );
+    }
+
+    #[test]
+    fn percentiles_2() {
+        let histogram = Histogram::new(0, 5, 10).unwrap();
+
+        for v in 1..1024 {
+            assert!(histogram.increment(v, 1).is_ok());
+            assert_eq!(histogram.percentile(0.0).map(|b| b.high()), Ok(1));
+
+            assert!(histogram.percentile(100.0).map(|b| b.high()).unwrap_or(0) >= v);
+            assert!(histogram.percentile(100.0).map(|b| b.low()).unwrap_or(0) <= v);
+        }
+
+        let percentiles: Vec<(u64, u64)> = histogram
+            .percentiles(&[1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0])
+            .unwrap()
+            .iter()
+            .map(|p| (p.bucket().low(), p.bucket().high()))
+            .collect();
+
+        // this histogram config has enough resolution to keep the error lower
+        assert_eq!(
+            &percentiles,
+            &[
+                (11, 11),
+                (100, 103),
+                (256, 271),
+                (512, 543),
+                (768, 799),
+                (896, 927),
+                (992, 1023)
+            ]
+        );
+    }
+
+    #[test]
+    fn percentiles_3() {
+        let histogram = Histogram::builder().build().unwrap();
+        histogram.increment(1, 1).unwrap();
+        histogram.increment(10000000, 1).unwrap();
+
+        let percentiles = histogram.percentiles(&[25.0, 75.0]).unwrap();
+
+        assert_eq!(histogram.percentile(25.0).map(|b| b.high()), Ok(1));
+        assert_eq!(histogram.percentile(75.0).map(|b| b.high()), Ok(10010623));
+
+        assert_eq!(percentiles.get(0).map(|b| b.bucket().high()), Some(1));
+        assert_eq!(
+            percentiles.get(1).map(|b| b.bucket().high()),
+            Some(10010623)
+        );
     }
 }
