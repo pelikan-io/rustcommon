@@ -295,6 +295,10 @@ impl Heatmap {
         &self.summary
     }
 
+    fn idx_delta(&self, idx: usize, delta: i64) -> usize {
+        (idx + (self.slices() as i64 + delta % self.slices() as i64) as usize) % self.slices()
+    }
+
     // compute the current slice index based on `next_tick` and `first_tick`
     fn slice_idx(&self, next_tick: Instant) -> usize {
         let ntick = next_tick.as_nanos() - self.first_tick.as_nanos() / self.resolution.as_nanos();
@@ -353,12 +357,9 @@ impl Heatmap {
                         // do not attempt to correct the staleness or inconsistencies in reporting.
                         //
                         // We may revisit this decision in the future.
-                        let mut idx = self.slice_idx(next_tick) + 1;
+                        let mut idx = self.idx_delta(self.slice_idx(next_tick), 1);
                         for _ in 0..ticks_forward {
-                            idx += 1;
-                            if idx >= self.slices() {
-                                idx -= self.slices();
-                            }
+                            idx = self.idx_delta(idx, 1);
                             let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
                         }
                         return (new_tick, self.slice_idx(new_tick));
@@ -400,7 +401,7 @@ pub struct Iter<'a> {
 impl<'a> Iter<'a> {
     fn new(inner: &'a Heatmap) -> Iter<'a> {
         let index: usize = if inner.active_slices() == inner.slices() - 1 {
-            inner.slice_idx(inner.next_tick.load(Ordering::Relaxed)) + 2
+            inner.idx_delta(inner.slice_idx(inner.next_tick.load(Ordering::Relaxed)), 2)
         } else {
             0
         };
