@@ -5,10 +5,10 @@
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
+use std::cmp::min;
 
 use clocksource::DateTime;
 use histogram::{Bucket, Histogram};
-use parking_lot::Mutex;
 
 /// A `Heatmap` stores counts for timestamped values over a configured span of
 /// time.
@@ -21,22 +21,28 @@ use parking_lot::Mutex;
 ///
 /// This acts as a moving histogram, such that requesting a percentile returns
 /// a percentile from across the configured span of time.
+///
+///
 pub struct Heatmap {
+    // these two fields are only set at creation time
     span: Duration,
     resolution: Duration,
+    // the following two timestamps are treated as equivalent even though they are
+    // not strictly so. This is so that we have a reference point to convert elapsed
+    // time to wall clock time (e.g. used in `Waterfall`)
+    create_at: DateTime, // creation time from the (human-readable) systems clock
+    first_tick: Instant, // creation time from the monolitic clock
 
     summary: Histogram,
     histograms: Vec<Histogram>,
 
-    // index in the ring buffer of the current histogram, which has the latest start time
-    idx: AtomicUsize,
-    // timestamp for when the heatmap was created in human readable time
-    create_at: DateTime,
-    first_tick: Instant,
-    curr_tick: AtomicInstant,
+    // the instant that the current slice should be "current" until, this is used to
+    // look up the correct slice `Histogram` to admit a value/count, as well as to
+    // decide when to clean up slices that have aged out
+    // Note: we can always compute the correct offset of the `Histogram` slice, as long
+    // as we have the beginning of the `Heatmap` which is stored in `first_tick`, and a
+    // timestamp which is an `Instant`
     next_tick: AtomicInstant,
-
-    lock: Mutex<()>,
 }
 
 /// A `Builder` allows for constructing a `Heatmap` with the desired
@@ -141,8 +147,13 @@ impl Heatmap {
         let mut histograms = Vec::new();
         let mut true_span = Duration::from_nanos(0);
         let mut span_stop = span;
-        // allocate one extra histogram so we always have a cleared
-        // one in the ring
+        let create_at = DateTime::now();
+        let first_tick = Instant::now();
+
+        // `true_span` is always a multiple of `resolution`, which means it maybe greater than
+        // the `span` provided by the `Builder`.
+        // Assuming `true_span / resolution = n`, we allocate `n + 1` `Histograms` so we always
+        // have a cleared one in the ring
         span_stop += resolution;
         while true_span < span_stop {
             histograms.push(Histogram::new(m, r, n).unwrap());
@@ -150,22 +161,16 @@ impl Heatmap {
         }
         histograms.shrink_to_fit();
 
-        let create_at = DateTime::now();
-        let first_tick = Instant::now();
-        let curr_tick = AtomicInstant::new(first_tick);
         let next_tick = AtomicInstant::new(first_tick + resolution);
 
         Ok(Self {
             span: true_span,
             resolution,
-            summary: Histogram::new(m, r, n)?,
-            histograms,
-            idx: AtomicUsize::new(0),
             create_at,
             first_tick,
-            curr_tick,
+            summary: Histogram::new(m, r, n)?,
+            histograms,
             next_tick,
-            lock: Mutex::new(()),
         })
     }
 
@@ -198,7 +203,8 @@ impl Heatmap {
         self.resolution
     }
 
-    /// Returns the number of slices stored in the `Heatmap`
+    /// Returns the number of `Histogram` slices the `Heatmap` can hold, each covering `resolution`
+    /// Note we allocate one more slice than what `span` demands
     pub fn slices(&self) -> usize {
         self.histograms.len()
     }
@@ -211,11 +217,10 @@ impl Heatmap {
 
     /// Returns the number of valid and active `Histogram` slices in the `Heatmap`
     pub fn active_slices(&self) -> usize {
-        if Instant::now() - self.first_tick > self.span {
-            self.slices()
-        } else {
-            self.idx.load(Ordering::Relaxed) + 1
-        }
+        let first_tick: u64 = self.first_tick.as_nanos();
+        let next_tick = self.next_tick.load(Ordering::Relaxed).as_nanos();
+        let total_ticks = ((next_tick - first_tick) / self.resolution.as_nanos()) as usize;
+        min(total_ticks, self.slices() - 1)
     }
 
     /// Returns the `DateTime` representation of when the `Heatmap` was created
@@ -225,13 +230,12 @@ impl Heatmap {
 
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) -> Result<(), Error> {
-        self.tick(time);
+        let (next_tick, idx) = self.tick(time);
 
-        let curr_tick = self.curr_tick.load(Ordering::Relaxed);
-        let idx = self.idx.load(Ordering::Relaxed);
+        let behind = next_tick.duration_since(time);
 
         // fast path when the time falls into the current time slice
-        if time >= curr_tick {
+        if behind < self.resolution {
             let _ = self.summary.increment(value, count);
             let _ = self.histograms[idx].increment(value, count);
             return Ok(());
@@ -240,10 +244,10 @@ impl Heatmap {
         // the value belonged to a past slice of the histogram
 
         // first we calculated much before current tick the event happened
-        let behind = curr_tick.duration_since(time);
         let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
 
-        if idx_backward > self.slices() {
+        // span: `slices() - 1`, backward distance: `slices() - 2`
+        if idx_backward > self.slices() - 2 {
             return Err(Error::OutOfSpan);
         }
 
@@ -292,67 +296,76 @@ impl Heatmap {
         &self.summary
     }
 
+    // compute the current slice index based on `next_tick` and `first_tick`
+    fn slice_idx(&self, next_tick: Instant) -> usize {
+        let ntick = next_tick.as_nanos() - self.first_tick.as_nanos() / self.resolution.as_nanos();
+        (ntick - 1) as usize % self.slices()
+    }
+
     // Internal function which handles all the housekeeping tasks that come due
     // as the clock advances- primarily updating the time windows covered by each
     // individual histogram, and cleaning up the values stored in buckets when
     // the histogram is assigned to handle a new time slice.
-    fn tick(&self, now: Instant) {
+    fn tick(&self, now: Instant) -> (Instant, usize) {
         loop {
-            let mut next_tick = self.next_tick.load(Ordering::Relaxed);
-
-            // this is the common case when a heatmap is frequently updated, such as in a busy
-            // service.
-            if now < next_tick {
-                return;
-            }
-
-            // some expiration needs to happen, let's try to acquire the lock
-            //
-            // note: we use parking_lot mutex as it will not be poisoned by
-            // a thread panic while locked.
-            if let Some(_lock) = self.lock.try_lock() {
-                // now that we have the lock, check that we still need to
-                // tick forward.
-                if now < self.next_tick.load(Ordering::Relaxed) {
-                    // someone already finished tick maintenance
-                    return;
+            loop {
+                let next_tick = self.next_tick.load(Ordering::Relaxed);
+                // this is the common case when a heatmap is frequently updated, such as in a busy
+                // service.
+                if now < next_tick {
+                    return (next_tick, self.slice_idx(next_tick));
                 }
 
-                let mut curr_tick = self.curr_tick.load(Ordering::Relaxed);
-
-                // calculate the number of histogram histogram slices that need cleanup
-                let elapsed = now.duration_since(curr_tick);
-                let ticks_forward = elapsed.as_nanos() / self.resolution.as_nanos();
-
-                // move current and next_tick forward
-                curr_tick += Duration::from_nanos(self.resolution.as_nanos() * ticks_forward);
-                next_tick = curr_tick + self.resolution;
-
-                // Note that in steady state, the next slice of the previous "current"
-                // histogram (which was marked by `idx`) is the oldest slice of histogram
-                // and therefore needs to be cleaned up. Similarly, if we need to move
-                // the tick forward by more than one window, all histograms we encounter
-                // while advancing the `idx` will need to be cleaned up. Of course, here
-                // the index will be wrapped around the ring buffer if it gets to the end.
-                let mut idx = self.idx.load(Ordering::Relaxed);
-                for _ in 0..ticks_forward {
-                    idx += 1;
-                    if idx == self.histograms.len() {
-                        idx = 0;
+                let ticks_forward =
+                    now.duration_since(next_tick).as_nanos() / self.resolution.as_nanos() + 1;
+                let new_tick = Instant::from_nanos(
+                    next_tick.as_nanos() + self.resolution.as_nanos() * ticks_forward,
+                );
+                let result = self.next_tick.compare_exchange(
+                    next_tick,
+                    new_tick,
+                    Ordering::AcqRel,
+                    Ordering::Relaxed,
+                );
+                match result {
+                    Err(_) => {
+                        // We will loop back to the top and see if the newly stored value is current
+                        // or we still need to move the tick forward
                     }
-                    let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
+                    Ok(_) => {
+                        // clean up `Histogram` slices if needed, then return
+                        //
+                        // because the `compare_exchange` operation above was successful, we know
+                        // we have exclusive clean up access to the slices covered between the
+                        // `next_tick` and `new_tick`, i.e. we start from 2 slices to the right of
+                        //  `next_tick`, and stop until we finish clearing slice immediately to
+                        // the right of `new_tick`. When `tick()` is called frequently enough, we
+                        // can assume `new_tick` is just to the right of `next_tick`, and the
+                        // clearing is performed on exactly one slice, which is the slice
+                        // immediately to the right of `new_tick` and 2 over to the right of
+                        // `next_tick`. (The slice immediately to the right of `next_tick` which is
+                        // `new_tick` now points to as current was already cleared previously, due
+                        // to having a buffer slice.)
+                        //
+                        // When the `next_tick` falls further behind, i.e. we need to clear more
+                        // than one slice, the buffer slice allocated can no longer guarantee that
+                        // new `increment`s are against a cleared slice, and reported `summary` may
+                        // be incorrect. We will clear all slices that should be cleared, but /
+                        // do not attempt to correct the staleness or inconsistencies in reporting.
+                        //
+                        // We may revisit this decision in the future.
+                        let mut idx = self.slice_idx(next_tick) + 1;
+                        for _ in 0..ticks_forward {
+                            idx += 1;
+                            if idx >= self.slices() {
+                                idx -= self.slices();
+                            }
+                            let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
+                        }
+                        return (new_tick, self.slice_idx(new_tick));
+                    }
                 }
-
-                self.idx.store(idx, Ordering::SeqCst);
-                self.curr_tick.store(curr_tick, Ordering::SeqCst);
-                self.next_tick.store(next_tick, Ordering::SeqCst);
             }
-            // if we failed to acquire the lock, just loop. this does mean
-            // we busy wait if the heatmap has fallen behind by multiple
-            // ticks. we expect the typical case to be that we need to tick
-            // forward by just a single slice. in that case, if we fail to
-            // acquire the lock, we expect that the loop will terminate when
-            // we check `next_tick` at the start of the next iteration.
         }
     }
 }
@@ -363,23 +376,18 @@ impl Clone for Heatmap {
         let resolution = self.resolution;
         let summary = self.summary.clone();
         let histograms = self.histograms.clone();
-        let idx = AtomicUsize::new(self.idx.load(Ordering::Relaxed));
         let create_at = self.create_at;
         let first_tick = self.first_tick;
-        let curr_tick = AtomicInstant::new(self.curr_tick.load(Ordering::Relaxed));
-        let next_tick = AtomicInstant::new(self.next_tick.load(Ordering::Relaxed));
+        let next_tick = AtomicInstant::new(first_tick + resolution);
 
         Heatmap {
             span,
             resolution,
-            summary,
-            histograms,
-            idx,
             create_at,
             first_tick,
-            curr_tick,
+            summary,
+            histograms,
             next_tick,
-            lock: Mutex::new(()),
         }
     }
 }
@@ -392,8 +400,8 @@ pub struct Iter<'a> {
 
 impl<'a> Iter<'a> {
     fn new(inner: &'a Heatmap) -> Iter<'a> {
-        let index: usize = if inner.active_slices() == inner.slices() {
-            inner.idx.load(Ordering::Relaxed) + 1
+        let index: usize = if inner.active_slices() == inner.slices() - 1 {
+            inner.slice_idx(inner.next_tick.load(Ordering::Relaxed)) + 2
         } else {
             0
         };

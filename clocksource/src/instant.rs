@@ -131,6 +131,16 @@ impl Instant<Nanoseconds<u64>> {
         CLOCK.initialize();
         CLOCK.precise.load(Ordering::Relaxed)
     }
+
+    pub fn as_nanos(&self) -> u64 {
+        self.inner.inner
+    }
+
+    pub fn from_nanos(ts: u64) -> Self {
+        Self {
+            inner: Nanoseconds { inner: ts },
+        }
+    }
 }
 
 impl core::fmt::Debug for Instant<Nanoseconds<u64>> {
