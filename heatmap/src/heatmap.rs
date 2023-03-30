@@ -257,9 +257,8 @@ impl Heatmap {
             idx - idx_backward
         };
 
-        let _ = self.summary.increment(value, count);
-        let _ = self.histograms[index].increment(value, count);
-
+        self.summary.increment(value, count)?;
+        self.histograms[index].increment(value, count)?;
         Ok(())
     }
 
