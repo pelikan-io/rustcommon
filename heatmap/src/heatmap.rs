@@ -236,8 +236,8 @@ impl Heatmap {
 
         // fast path when the time falls into the current time slice
         if behind < self.resolution {
-            let _ = self.summary.increment(value, count);
-            let _ = self.histograms[idx].increment(value, count);
+            self.summary.increment(value, count)?;
+            self.histograms[idx].increment(value, count)?;
             return Ok(());
         }
 
