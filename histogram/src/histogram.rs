@@ -481,3 +481,23 @@ impl<'a> Iterator for HistogramIter<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_min_resolution() {
+        let h = Histogram::builder()
+            .min_resolution(std::num::NonZeroU64::new(10).unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(h.m, 3); // 2^3 == 8
+
+        let h = Histogram::builder()
+            .min_resolution(std::num::NonZeroU64::new(8).unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(h.m, 3);// 2^3 == 8
+    }
+}
