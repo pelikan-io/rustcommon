@@ -498,6 +498,6 @@ mod tests {
             .min_resolution(std::num::NonZeroU64::new(8).unwrap())
             .build()
             .unwrap();
-        assert_eq!(h.m, 3);// 2^3 == 8
+        assert_eq!(h.m, 3); // 2^3 == 8
     }
 }
