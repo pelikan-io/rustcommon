@@ -6,6 +6,7 @@ use crate::*;
 
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
+use std::num::NonZeroU64;
 
 /// A `Histogram` groups recorded values into buckets of similar values and
 /// tracks counts for recorded values that fall into those ranges.
@@ -55,8 +56,8 @@ impl Builder {
     /// largest power of two that is less than or equal to the provided value.
     /// For example, if the minimum resolution is set to 10, the width of the
     /// smallest bucket will be 8.
-    pub fn min_resolution(mut self, width: u64) -> Self {
-        self.m = 64 - width.leading_zeros();
+    pub fn min_resolution(mut self, width: NonZeroU64) -> Self {
+        self.m = 63 - width.leading_zeros();
         self
     }
 
