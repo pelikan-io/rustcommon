@@ -19,6 +19,9 @@ pub enum Error {
     #[error("value out of heatmap span")]
     /// The provided timestamp indicates a time no longer tracked by the `Heatmap`.
     OutOfSpan,
+    #[error("heatmap clock became stale")]
+    /// The `Heatmap`'s internal clock reading fell behind by more than one tick.
+    StaleClock,
     #[error("invalid heatmap config")]
     /// The heatmap configuration is invalid, see docs for `Heatmap::new()` for
     /// the constraints.

@@ -53,10 +53,10 @@ will pollute reporting in the future (the non-zero value is now treated as
 belonging to a different tick versus just a count discrepancy but for the
 correct span). This could also introduce temporary inconsistencies, including
 the possibility of underflow, into the summary `Histogram` if only atomicity
-is guaranteed. (As an exercise, readers are encouraged
-to construct some examples that demonstrate this behavior assuming updates to
-the summary and time-sliced `Histogram` can be reordered and intermixed with
-resetting a `Histogram` slice.)
+is guaranteed. (As an exercise, readers are encouraged to construct some
+examples that demonstrate this behavior assuming updates to the summary and
+time-sliced `Histogram` can be reordered and intermixed with resetting a
+`Histogram` slice.)
 
 Fortunately, there is a simple fix to avoid concurrent increment and reset in
 normal cases. We add an extra slice on top of what is necessary to cover the
@@ -65,4 +65,7 @@ normal cases. We add an extra slice on top of what is necessary to cover the
 atomically move the tick forward and ensure that change is visible by all
 threads (by using the `Release` ordering), before starting to clear the counters
 of the oldest slice(s). The time range lookup will spare the now out of `span`
-`Histogram` from ongoing `increment`s.
+`Histogram` from ongoing `increment`s. This technique does not address the case
+where the the current tick has fallen behind by more than a `Histogram` slice.
+When that happens, any `increment`s that fall into the slices to be cleared will
+be incorrectly/prematurely erased.

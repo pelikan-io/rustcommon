@@ -259,31 +259,31 @@ impl Heatmap {
 
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) -> Result<(), Error> {
-        let (next_tick, idx) = self.tick(time);
+        let (next_tick, mut idx, ntick) = self.tick(time);
 
         let behind = next_tick.duration_since(time);
 
-        // fast path when the time falls into the current time slice
-        if behind < self.resolution {
-            self.summary.increment(value, count)?;
-            self.histograms[idx].increment(value, count)?;
-            return Ok(());
+        // slow path when the time falls into the current time slice
+        if behind > self.resolution {
+            // the value belonged to a past slice of the histogram
+
+            // first we calculated much before current tick the event happened
+            let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
+
+            if idx_backward > self.active_slices() - 1 {
+                return Err(Error::OutOfSpan);
+            }
+
+            idx = self.idx_delta(idx, -(idx_backward as i64));
         }
-
-        // the value belonged to a past slice of the histogram
-
-        // first we calculated much before current tick the event happened
-        let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
-
-        if idx_backward > self.active_slices() - 1 {
-            return Err(Error::OutOfSpan);
-        }
-
-        let index = self.idx_delta(idx, -(idx_backward as i64));
 
         self.summary.increment(value, count)?;
-        self.histograms[index].increment(value, count)?;
-        Ok(())
+        self.histograms[idx].increment(value, count)?;
+        if ntick <= 1 {
+            return Ok(());
+        } else {
+            return Err(Error::StaleClock);
+        }
     }
 
     /// Return the nearest value for the requested percentile (0.0 - 100.0)
@@ -333,14 +333,18 @@ impl Heatmap {
     // as the clock advances- primarily updating the time windows covered by each
     // individual histogram, and cleaning up the values stored in buckets when
     // the histogram is assigned to handle a new time slice.
-    fn tick(&self, now: Instant) -> (Instant, usize) {
+    //
+    // It returns the `next_tick` value which indicates the upper bound of the
+    // current `span`, the index of the most recent `Histogram` slice, and by
+    // how many ticks the heatmap moved forward.
+    fn tick(&self, now: Instant) -> (Instant, usize, usize) {
         loop {
             loop {
                 let next_tick = self.next_tick.load(Ordering::Relaxed);
                 // this is the common case when a heatmap is frequently updated, such as in a busy
                 // service.
                 if now < next_tick {
-                    return (next_tick, self.slice_idx(next_tick));
+                    return (next_tick, self.slice_idx(next_tick), 0);
                 }
 
                 let ticks_forward =
@@ -386,7 +390,7 @@ impl Heatmap {
                             idx = self.idx_delta(idx, 1);
                             let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
                         }
-                        return (new_tick, self.slice_idx(new_tick));
+                        return (new_tick, self.slice_idx(new_tick), ticks_forward as usize);
                     }
                 }
             }
