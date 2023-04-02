@@ -7,8 +7,9 @@ use crate::*;
 use core::sync::atomic::*;
 use std::cmp::min;
 
-use clocksource::DateTime;
 use histogram::{Bucket, Histogram};
+
+type UnixInstant = clocksource::UnixInstant<Nanoseconds<u64>>;
 
 /// A `Heatmap` stores counts for timestamped values over a configured span of
 /// time.
@@ -30,7 +31,6 @@ pub struct Heatmap {
     // the following two timestamps are treated as equivalent even though they are
     // not strictly so. This is so that we have a reference point to convert elapsed
     // time to wall clock time (e.g. used in `Waterfall`)
-    create_at: DateTime, // creation time from the (human-readable) systems clock
     first_tick: Instant, // creation time from the monolitic clock
 
     summary: Histogram,
@@ -58,12 +58,34 @@ pub struct Builder {
     span: Duration,
     // the resolution in the time domain
     resolution: Duration,
+    // align tick boundary in `Heatmap` with `resolution`
+    align: bool,
 }
 
 impl Builder {
     /// Consume the `Builder` and return a `Heatmap`.
     pub fn build(self) -> Result<Heatmap, Error> {
-        Heatmap::new(self.m, self.r, self.n, self.span, self.resolution)
+        // best effort attempt to line up start time with a system clock boundary
+        // decided by `resolution`
+        let mut monotonic_now = Instant::now();
+        if self.align {
+            // read the real-time clock and get the remainder against resolution
+            let system_now = UnixInstant::now();
+            let delta = system_now
+                .duration_since(UnixInstant::from_nanos(0))
+                .as_nanos()
+                % self.resolution.as_nanos();
+            // set the monotonic clock start time back by the remainder
+            monotonic_now -= Duration::from_nanos(delta);
+        }
+        Heatmap::new(
+            self.m,
+            self.r,
+            self.n,
+            monotonic_now,
+            self.span,
+            self.resolution,
+        )
     }
 
     /// Sets the width of the smallest bucket in the `Heatmap`.
@@ -115,6 +137,14 @@ impl Builder {
         self.resolution = duration;
         self
     }
+
+    /// Align start for the resolution give. If resolution is secondly, setting
+    /// `align` to true will lead to a best-effort attempt to put `first_tick`
+    /// value at or near the latest multiple of `resolution` in the past.
+    pub fn align(mut self, align: bool) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 impl Heatmap {
@@ -133,6 +163,10 @@ impl Heatmap {
     /// - `n` - sets the maximum value `N = 2^n - 1`. The selected value must be
     /// greater than or equal to the minimum resolution range `r`.
     ///
+    /// - `start_at` - the `Instant` the `Heatmap` should have started its clock.
+    /// The caller can simply set it to `Instant::now()`, or something else,
+    /// e.g. to align the `start_at` time at the top of second.
+    ///
     /// - `span` - sets the total duration that the heatmap covers
     ///
     /// - `resolution` - sets the resolution in the time domain. Counts from
@@ -141,14 +175,14 @@ impl Heatmap {
         m: u32,
         r: u32,
         n: u32,
+        start_at: Instant,
         span: Duration,
         resolution: Duration,
     ) -> Result<Self, Error> {
         let mut histograms = Vec::new();
         let mut true_span = Duration::from_nanos(0);
         let mut span_stop = span;
-        let create_at = DateTime::now();
-        let first_tick = Instant::now();
+        let first_tick = start_at;
 
         // `true_span` is always a multiple of `resolution`, which means it maybe greater than
         // the `span` provided by the `Builder`.
@@ -166,7 +200,6 @@ impl Heatmap {
         Ok(Self {
             span: true_span,
             resolution,
-            create_at,
             first_tick,
             summary: Histogram::new(m, r, n)?,
             histograms,
@@ -190,6 +223,7 @@ impl Heatmap {
             n: 30,
             span: Duration::from_secs(60),
             resolution: Duration::from_secs(1),
+            align: false,
         }
     }
 
@@ -223,11 +257,6 @@ impl Heatmap {
         min(total_ticks, self.slices() - 1)
     }
 
-    /// Returns the `DateTime` representation of when the `Heatmap` was created
-    pub fn created_at(&self) -> DateTime {
-        self.create_at
-    }
-
     /// Increment a time-value pair by a specified count
     pub fn increment(&self, time: Instant, value: u64, count: u32) -> Result<(), Error> {
         let (next_tick, idx) = self.tick(time);
@@ -246,16 +275,11 @@ impl Heatmap {
         // first we calculated much before current tick the event happened
         let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
 
-        // span: `slices() - 1`, backward distance: `slices() - 2`
-        if idx_backward > self.slices() - 2 {
+        if idx_backward > self.active_slices() - 1 {
             return Err(Error::OutOfSpan);
         }
 
-        let index: usize = if idx_backward > idx {
-            idx + self.slices() - idx_backward
-        } else {
-            idx - idx_backward
-        };
+        let index = self.idx_delta(idx, -(idx_backward as i64));
 
         self.summary.increment(value, count)?;
         self.histograms[index].increment(value, count)?;
@@ -296,7 +320,7 @@ impl Heatmap {
     }
 
     fn idx_delta(&self, idx: usize, delta: i64) -> usize {
-        (idx + (self.slices() as i64 + delta % self.slices() as i64) as usize) % self.slices()
+        (idx + (self.slices() as i64 + delta) as usize) % self.slices()
     }
 
     // compute the current slice index based on `next_tick` and `first_tick`
@@ -376,14 +400,12 @@ impl Clone for Heatmap {
         let resolution = self.resolution;
         let summary = self.summary.clone();
         let histograms = self.histograms.clone();
-        let create_at = self.create_at;
         let first_tick = self.first_tick;
         let next_tick = AtomicInstant::new(first_tick + resolution);
 
         Heatmap {
             span,
             resolution,
-            create_at,
             first_tick,
             summary,
             histograms,
@@ -401,6 +423,9 @@ pub struct Iter<'a> {
 impl<'a> Iter<'a> {
     fn new(inner: &'a Heatmap) -> Iter<'a> {
         let index: usize = if inner.active_slices() == inner.slices() - 1 {
+            // When the `Histogram` vector is fully utilized, the current slice is on the left
+            // (factoring in wraparound) of the buffer slice, which is on the left of the oldest
+            // slice
             inner.idx_delta(inner.slice_idx(inner.next_tick.load(Ordering::Relaxed)), 2)
         } else {
             0
@@ -446,8 +471,15 @@ mod tests {
 
     #[test]
     fn age_out() {
-        let heatmap =
-            Heatmap::new(0, 4, 20, Duration::from_secs(1), Duration::from_millis(1)).unwrap();
+        let heatmap = Heatmap::new(
+            0,
+            4,
+            20,
+            Instant::now(),
+            Duration::from_secs(1),
+            Duration::from_millis(1),
+        )
+        .unwrap();
         assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Err(Error::Empty));
         heatmap.increment(Instant::now(), 1, 1).unwrap();
         assert_eq!(heatmap.percentile(0.0).map(|v| v.high()), Ok(1));

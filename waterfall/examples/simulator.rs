@@ -38,6 +38,7 @@ pub fn simulate(shape: Shape) {
         0,
         10,
         20,
+        Instant::now(),
         Duration::from_secs(120),
         Duration::from_millis(250),
     )

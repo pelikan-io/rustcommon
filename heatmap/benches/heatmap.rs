@@ -3,7 +3,15 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use heatmap::*;
 
 fn heatmap(c: &mut Criterion) {
-    let heatmap = Heatmap::new(0, 4, 20, Duration::from_secs(1), Duration::from_millis(1)).unwrap();
+    let heatmap = Heatmap::new(
+        0,
+        4,
+        20,
+        Instant::now(),
+        Duration::from_secs(1),
+        Duration::from_millis(1),
+    )
+    .unwrap();
 
     let mut group = c.benchmark_group("heatmap");
 

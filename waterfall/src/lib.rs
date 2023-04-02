@@ -6,15 +6,16 @@
 
 mod palettes;
 
+use clocksource::{DateTime, UnixInstant};
 pub use palettes::Palette;
 
-use heatmap::*;
 use image::*;
 use palettes::*;
 use rusttype::{point, Font, PositionedGlyph, Scale as TypeScale};
 
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Copy, Clone)]
 /// Used to configure various strategies for mapping values to colors
@@ -186,14 +187,23 @@ impl WaterfallBuilder {
         }
 
         // add the timestamp labels along the left side
-        let mut display_time = heatmap.created_at();
-        let mut res: usize = 0;
+        let mut system_time = SystemTime::now()
+            - Duration::from_nanos(
+                heatmap.resolution().as_nanos() * heatmap.active_slices() as u64,
+            );
         for (y, _) in heatmap.into_iter().enumerate() {
-            res += 1;
-            display_time =
-                display_time + std::time::Duration::from_nanos(heatmap.resolution().as_nanos());
+            system_time += Duration::from_nanos(heatmap.resolution().as_nanos());
+            // this is a bit of a mess but that's because `DateTime` does not support
+            // `Duration` arithmetics needed here, and on the other hand `SystemTime`
+            // doesn't have the formatting needed here. So we use a patchwork of both
+            // to keep the depedencies mostly the same for now, and will be further
+            // sorted out in another PR that does a full revisit of the use of time-related
+            // libraries.
+            let display_time = DateTime::from(UnixInstant::from_nanos(
+                system_time.duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64,
+            ));
 
-            if heatmap.resolution().mul_f64(res as f64) >= self.interval {
+            if heatmap.resolution().as_nanos() >= self.interval.as_nanos() as u64 {
                 let label = format!("{}", display_time);
                 render_text(&label, 25.0, 0, y + 2, &mut buf);
                 for x in 0..width {
@@ -203,7 +213,6 @@ impl WaterfallBuilder {
                         Rgb([255, 255, 255]),
                     );
                 }
-                res = 0;
             }
         }
         buf.save(&self.output).unwrap();
