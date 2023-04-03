@@ -56,7 +56,11 @@ impl Builder {
     /// For example, if the minimum resolution is set to 10, the width of the
     /// smallest bucket will be 8.
     pub fn min_resolution(mut self, width: u64) -> Self {
-        self.m = 64 - width.leading_zeros();
+        if width > 0 {
+            self.m = 63 - width.leading_zeros();
+        } else {
+            self.m = 0;
+        }
         self
     }
 
@@ -478,5 +482,22 @@ impl<'a> Iterator for HistogramIter<'a> {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_min_resolution() {
+        let h = Histogram::builder().min_resolution(10).build().unwrap();
+        assert_eq!(h.m, 3);
+
+        let h = Histogram::builder().min_resolution(8).build().unwrap();
+        assert_eq!(h.m, 3);
+
+        let h = Histogram::builder().min_resolution(0).build().unwrap();
+        assert_eq!(h.m, 0);
     }
 }
