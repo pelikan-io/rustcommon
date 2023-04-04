@@ -8,7 +8,7 @@ use ratelimit::{Ratelimiter, Refill};
 fn main() {
     for strategy in &[Refill::Normal, Refill::Uniform] {
         println!("strategy: {:?}", strategy);
-        let limiter = Ratelimiter::new(1, 1, 1);
+        let limiter = Ratelimiter::new(1, 1, 1).unwrap();
         limiter.set_strategy(*strategy);
         for i in 0..10 {
             limiter.wait();

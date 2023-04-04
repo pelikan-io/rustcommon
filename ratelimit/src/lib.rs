@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Twitter, Inc.
+// Copyright 2019 Twitter, Inc.
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
@@ -11,6 +11,7 @@ use core::convert::TryFrom;
 use core::sync::atomic::*;
 
 use rand_distr::{Distribution, Normal, Uniform};
+use thiserror::Error;
 
 /// A token bucket ratelimiter
 pub struct Ratelimiter {
@@ -18,10 +19,18 @@ pub struct Ratelimiter {
     capacity: AtomicU64,
     quantum: AtomicU64,
     strategy: AtomicUsize,
-    tick: Duration<Nanoseconds<AtomicU64>>,
-    next: Instant<Nanoseconds<AtomicU64>>,
+    interval: Duration<Nanoseconds<AtomicU64>>,
+    tick_at: Instant<Nanoseconds<AtomicU64>>,
     normal: Normal<f64>,
     uniform: Uniform<f64>,
+}
+
+/// Possible errors returned by operations on a histogram.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum Error {
+    #[error("rate must be > 0")]
+    /// The histogram contains no samples.
+    InvalidRate,
 }
 
 /// Refill strategies define how the token bucket is refilled. The different
@@ -70,39 +79,52 @@ impl Ratelimiter {
     /// use ratelimit::*;
     ///
     /// // ratelimit to 1/s with no burst capacity
-    /// let ratelimiter = Ratelimiter::new(1, 1, 1);
+    /// let ratelimiter = Ratelimiter::new(1, 1, 1).unwrap();
     ///
     /// // ratelimit to 100/s with bursts up to 10
-    /// let ratelimiter = Ratelimiter::new(10, 1, 100);
+    /// let ratelimiter = Ratelimiter::new(10, 1, 100).unwrap();
     /// ```
-    pub fn new(capacity: u64, quantum: u64, rate: u64) -> Self {
-        let tick = SECOND / (rate / quantum);
-        Self {
+    pub fn new(capacity: u64, quantum: u64, rate: u64) -> Result<Self, Error> {
+        if rate == 0 {
+            return Err(Error::InvalidRate);
+        }
+
+        let interval = SECOND / rate;
+
+        let tick_at =
+            Instant::<Nanoseconds<u64>>::now() + Duration::<Nanoseconds<u64>>::from_nanos(interval);
+
+        Ok(Self {
             available: AtomicU64::default(),
             capacity: AtomicU64::new(capacity),
             quantum: AtomicU64::new(quantum),
             strategy: AtomicUsize::new(Refill::Smooth as usize),
-            tick: Duration::<Nanoseconds<AtomicU64>>::from_nanos(tick),
-            next: Instant::<Nanoseconds<AtomicU64>>::now(),
-            normal: Normal::new(tick as f64, 2.0 * tick as f64).unwrap(),
-            uniform: Uniform::new_inclusive(tick as f64 * 0.5, tick as f64 * 1.5),
-        }
+            interval: Duration::<Nanoseconds<AtomicU64>>::from_nanos(interval),
+            tick_at: Instant::<Nanoseconds<AtomicU64>>::new(tick_at),
+            normal: Normal::new(interval as f64, 2.0 * interval as f64).unwrap(),
+            uniform: Uniform::new_inclusive(interval as f64 * 0.5, interval as f64 * 1.5),
+        })
     }
 
     /// Changes the rate of the `Ratelimiter`. The new rate will be in effect on
     /// the next tick.
-    pub fn set_rate(&self, rate: u64) {
-        self.tick.store(
-            Duration::<Nanoseconds<u64>>::from_nanos(
-                SECOND / (rate / self.quantum.load(Ordering::Relaxed)),
-            ),
+    pub fn set_rate(&self, rate: u64) -> Result<(), Error> {
+        if rate == 0 {
+            return Err(Error::InvalidRate);
+        }
+
+        self.interval.store(
+            Duration::<Nanoseconds<u64>>::from_nanos(SECOND / rate),
             Ordering::Relaxed,
         );
+
+        Ok(())
     }
 
     /// Returns the current rate
     pub fn rate(&self) -> u64 {
-        SECOND * self.quantum.load(Ordering::Relaxed) / self.tick.load(Ordering::Relaxed).as_nanos()
+        SECOND * self.quantum.load(Ordering::Relaxed)
+            / self.interval.load(Ordering::Relaxed).as_nanos()
     }
 
     /// Changes the refill strategy
@@ -112,34 +134,89 @@ impl Ratelimiter {
 
     // internal function to move the time forward
     fn tick(&self) {
+        // get the time when tick() was called
         let now = Instant::<Nanoseconds<u64>>::now();
-        let next = self.next.load(Ordering::Relaxed);
-        if now >= next {
-            let strategy = Refill::try_from(self.strategy.load(Ordering::Relaxed));
-            let tick = match strategy {
-                Ok(Refill::Smooth) => self.tick.load(Ordering::Relaxed).as_nanos(),
-                Ok(Refill::Uniform) => self.uniform.sample(&mut rand::thread_rng()) as u64,
-                Ok(Refill::Normal) => self.normal.sample(&mut rand::thread_rng()) as u64,
-                Err(_) => self.tick.load(Ordering::Relaxed).as_nanos(),
+
+        // we loop here so that if we lose the compare_exchange, we can try
+        // again if tick_at has not advanced far enough
+        loop {
+            // load the current value
+            let tick_at = self.tick_at.load(Ordering::Relaxed);
+
+            // if `tick_at` is in the future, we return.
+            if tick_at > now {
+                return;
+            }
+
+            // Depending on our refill strategy, we have different ways to
+            // calculate how many `ticks` have elapsed.
+            let (next, ticks) = match Refill::try_from(self.strategy.load(Ordering::Relaxed)) {
+                Ok(Refill::Smooth) | Err(_) => {
+                    // This case is the most straightforward, since the interval
+                    // between ticks is constant, we can directly calculate how
+                    // many have elapsed.
+
+                    let interval = self.interval.load(Ordering::Relaxed);
+
+                    let ticks = 1 + (now - tick_at).as_nanos() / interval.as_nanos();
+                    let next = now + interval;
+
+                    (next, ticks)
+                }
+                Ok(Refill::Uniform) => {
+                    // For this refill strategy, the tick interval is variable.
+                    // Therefore, we must sample the distribution repeatedly to
+                    // determine how many ticks would have elapsed.
+
+                    let mut tick_to = tick_at;
+                    let mut ticks = 0;
+
+                    while tick_to <= tick_at {
+                        tick_to += Duration::<Nanoseconds<u64>>::from_nanos(
+                            self.uniform.sample(&mut rand::thread_rng()) as u64,
+                        );
+                        ticks += 1;
+                    }
+
+                    (tick_to, ticks)
+                }
+                Ok(Refill::Normal) => {
+                    // For this refill strategy, the tick interval is variable.
+                    // Therefore, we must sample the distribution repeatedly to
+                    // determine how many ticks would have elapsed.
+
+                    let mut next = tick_at;
+                    let mut ticks = 0;
+
+                    while next <= tick_at {
+                        next += Duration::<Nanoseconds<u64>>::from_nanos(
+                            self.normal.sample(&mut rand::thread_rng()) as u64,
+                        );
+                        ticks += 1;
+                    }
+
+                    (next, ticks)
+                }
             };
+
+            // Now we attempt to atomically update `tick_at`. If we lose the
+            // race, we will loop and find we hit one of two cases:
+            // - `tick_at` has advanced into the future and we early return
+            // - `tick_at` has advanced, but is not in the future, so we need to
+            //    recalculate how many ticks to advance by and attempt the
+            //    compare/exchange again
             if self
-                .next
-                .compare_exchange(
-                    next,
-                    next + Duration::<Nanoseconds<u64>>::from_nanos(tick),
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                )
+                .tick_at
+                .compare_exchange(tick_at, next, Ordering::SeqCst, Ordering::SeqCst)
                 .is_ok()
             {
-                let quantum = self.quantum.load(Ordering::Relaxed);
+                let tokens = self.quantum.load(Ordering::Relaxed) * ticks;
                 let capacity = self.capacity.load(Ordering::Relaxed);
                 let available = self.available.load(Ordering::Relaxed);
-                if available + quantum >= capacity {
-                    let quantum = capacity - available;
-                    self.available.fetch_add(quantum, Ordering::Relaxed);
+                if available + tokens >= capacity {
+                    self.available.store(capacity, Ordering::Relaxed);
                 } else {
-                    self.available.fetch_add(quantum, Ordering::Relaxed);
+                    self.available.fetch_add(tokens, Ordering::Relaxed);
                 }
             }
         }
@@ -153,7 +230,7 @@ impl Ratelimiter {
     /// ```
     /// use ratelimit::*;
     ///
-    /// let ratelimiter = Ratelimiter::new(1, 1, 100);
+    /// let ratelimiter = Ratelimiter::new(1, 1, 100).unwrap();
     /// for i in 0..100 {
     ///     // do some work here
     ///     while ratelimiter.try_wait().is_err() {
@@ -191,7 +268,7 @@ impl Ratelimiter {
     /// ```
     /// use ratelimit::*;
     ///
-    /// let ratelimiter = Ratelimiter::new(1, 1, 100);
+    /// let ratelimiter = Ratelimiter::new(1, 1, 100).unwrap();
     /// for i in 0..100 {
     ///     // do some work here
     ///     ratelimiter.wait();
@@ -199,5 +276,27 @@ impl Ratelimiter {
     /// ```
     pub fn wait(&self) {
         while self.try_wait().is_err() {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{thread::sleep, time::Duration};
+
+    use crate::Ratelimiter;
+
+    #[test]
+    fn should_not_burst_beyond_capacity() {
+        let rl = Ratelimiter::new(1, 1, 1000).unwrap();
+
+        // Sleep 100ms
+        sleep(Duration::from_millis(100));
+
+        let mut tokens = 0;
+        while rl.try_wait().is_ok() {
+            tokens += 1;
+        }
+
+        assert_eq!(tokens, 1);
     }
 }

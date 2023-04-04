@@ -1,4 +1,4 @@
-// Copyright 2019 Twitter, Inc.
+// Copyright 2023 IOP Systems, Inc.
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
@@ -6,15 +6,18 @@ use clocksource::{DateTime, SecondsFormat};
 use ratelimit::Ratelimiter;
 
 fn main() {
-    let limiter = Ratelimiter::new(1, 1, 1).unwrap();
-    for i in 0..10 {
+    let limiter = Ratelimiter::new(10, 10, 1).unwrap();
+    println!(
+        "{}: Running",
+        DateTime::now().to_rfc3339_opts(SecondsFormat::Millis, false),
+    );
+    for i in 0..100 {
         limiter.wait();
         println!(
-            "{}: T -{}",
+            "{}: {}",
             DateTime::now().to_rfc3339_opts(SecondsFormat::Millis, false),
-            10 - i
+            i
         );
     }
     limiter.wait();
-    println!("Ignition");
 }
