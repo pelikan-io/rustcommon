@@ -25,11 +25,10 @@ pub struct Ratelimiter {
     uniform: Uniform<f64>,
 }
 
-/// Possible errors returned by operations on a histogram.
+/// Possible errors while constructing a `Ratelimiter`
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     #[error("rate must be > 0")]
-    /// The histogram contains no samples.
     InvalidRate,
 }
 
@@ -159,7 +158,7 @@ impl Ratelimiter {
                     let interval = self.interval.load(Ordering::Relaxed);
 
                     let ticks = 1 + (now - tick_at).as_nanos() / interval.as_nanos();
-                    let next = now + interval;
+                    let next = tick_at + Duration::<Nanoseconds<u64>>::from_nanos(interval.as_nanos() * ticks);
 
                     (next, ticks)
                 }
@@ -214,7 +213,7 @@ impl Ratelimiter {
                 let capacity = self.capacity.load(Ordering::Relaxed);
                 let available = self.available.load(Ordering::Relaxed);
                 if available + tokens >= capacity {
-                    self.available.store(capacity, Ordering::Relaxed);
+                    self.available.fetch_add(capacity - available, Ordering::Relaxed);
                 } else {
                     self.available.fetch_add(tokens, Ordering::Relaxed);
                 }
