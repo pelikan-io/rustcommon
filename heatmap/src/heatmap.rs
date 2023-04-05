@@ -257,7 +257,7 @@ impl Heatmap {
         self.resolution
     }
 
-    /// Returns the `start_at` covered by a single slice of histogram
+    /// Returns the `start_at` timestamp of the `Heatmap`
     pub fn start_at(&self) -> UnixInstant {
         self.start_ts
     }
@@ -276,9 +276,9 @@ impl Heatmap {
 
     /// Returns the number of valid and active `Histogram` slices in the `Heatmap`
     pub fn active_slices(&self) -> usize {
-        let tick_origin: u64 = self.tick_origin.as_nanos();
-        let tick_at = self.tick_at.load(Ordering::Relaxed).as_nanos();
-        let total_ticks = ((tick_at - tick_origin) / self.resolution.as_nanos()) as usize;
+        let instant = self.tick_at.load(Ordering::Relaxed);
+        let elapsed = instant.duration_since(self.tick_origin);
+        let total_ticks = (elapsed.as_nanos() / self.resolution.as_nanos()) as usize;
         min(total_ticks, self.slices() - 1)
     }
 
@@ -305,9 +305,9 @@ impl Heatmap {
         self.summary.increment(value, count)?;
         self.histograms[idx].increment(value, count)?;
         if ntick <= 1 {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(Error::StaleClock);
+            Err(Error::StaleClock)
         }
     }
 

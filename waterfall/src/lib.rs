@@ -200,7 +200,7 @@ impl WaterfallBuilder {
         }
 
         for (y, _) in heatmap.into_iter().enumerate() {
-            if heatmap.resolution().as_nanos() >= self.interval.as_nanos() as u64 {
+            if heatmap.resolution().as_nanos() >= self.interval.as_nanos() {
                 let label = format!("{}", DateTime::from(display_time));
                 render_text(&label, 25.0, 0, y + 2, &mut buf);
                 for x in 0..width {
