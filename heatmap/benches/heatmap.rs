@@ -7,9 +7,10 @@ fn heatmap(c: &mut Criterion) {
         0,
         4,
         20,
-        Instant::now(),
         Duration::from_secs(1),
         Duration::from_millis(1),
+        None,
+        None,
     )
     .unwrap();
 

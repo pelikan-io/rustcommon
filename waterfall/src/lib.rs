@@ -6,7 +6,8 @@
 
 mod palettes;
 
-use clocksource::{DateTime, UnixInstant};
+use clocksource::{DateTime, Nanoseconds, UnixInstant};
+use heatmap::*;
 pub use palettes::Palette;
 
 use image::*;
@@ -15,7 +16,6 @@ use rusttype::{point, Font, PositionedGlyph, Scale as TypeScale};
 
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Copy, Clone)]
 /// Used to configure various strategies for mapping values to colors
@@ -187,24 +187,21 @@ impl WaterfallBuilder {
         }
 
         // add the timestamp labels along the left side
-        let mut system_time = SystemTime::now()
-            - Duration::from_nanos(
-                heatmap.resolution().as_nanos() * heatmap.active_slices() as u64,
-            );
-        for (y, _) in heatmap.into_iter().enumerate() {
-            system_time += Duration::from_nanos(heatmap.resolution().as_nanos());
-            // this is a bit of a mess but that's because `DateTime` does not support
-            // `Duration` arithmetics needed here, and on the other hand `SystemTime`
-            // doesn't have the formatting needed here. So we use a patchwork of both
-            // to keep the depedencies mostly the same for now, and will be further
-            // sorted out in another PR that does a full revisit of the use of time-related
-            // libraries.
-            let display_time = DateTime::from(UnixInstant::from_nanos(
-                system_time.duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64,
-            ));
+        let now = UnixInstant::<Nanoseconds<u64>>::now();
+        let mut display_time = heatmap.start_at();
+        let ntick = (1 + now.duration_since(display_time).as_nanos()
+            / heatmap.resolution().as_nanos()) as usize;
+        if ntick > heatmap.active_slices() {
+            // heatmap only has partial history
+            // adjust earliest timestamp to display in Waterfall
+            display_time += heatmap
+                .resolution()
+                .mul_f64((ntick - heatmap.active_slices()) as f64);
+        }
 
+        for (y, _) in heatmap.into_iter().enumerate() {
             if heatmap.resolution().as_nanos() >= self.interval.as_nanos() as u64 {
-                let label = format!("{}", display_time);
+                let label = format!("{}", DateTime::from(display_time));
                 render_text(&label, 25.0, 0, y + 2, &mut buf);
                 for x in 0..width {
                     buf.put_pixel(
@@ -214,6 +211,7 @@ impl WaterfallBuilder {
                     );
                 }
             }
+            display_time += heatmap.resolution();
         }
         buf.save(&self.output).unwrap();
     }
