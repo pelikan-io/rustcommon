@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+//! # A Note on Thread-Safety and Performance Considerations
 //! A `Heatmap` is made up of a collection of `Histogram`s covering the `span` of
 //! interest. When using a windowed approach to discretize timespans, a common
 //! technique is to create many small windows of the same `resolution`. The
