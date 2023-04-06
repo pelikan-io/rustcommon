@@ -31,14 +31,18 @@ pub enum Shape {
 }
 
 pub fn simulate(shape: Shape) {
-    println!("Simulating for {:?} distribution", shape);
-    let duration = Duration::from_secs(120);
+    let duration = Duration::from_secs(10);
+    println!(
+        "Simulating for {:?} distribution for {:?} seconds",
+        shape,
+        duration.as_secs_f64()
+    );
 
     let heatmap = Heatmap::new(
         0,
         10,
-        20,
-        Duration::from_secs(120),
+        30,
+        Duration::from_secs(10),
         Duration::from_millis(250),
         None,
         None,
@@ -66,7 +70,7 @@ pub fn simulate(shape: Shape) {
         };
         let value = value.floor() as u64;
         if value != 0 {
-            heatmap.increment(Instant::now(), value, 1).unwrap();
+            let _ = heatmap.increment(Instant::now(), value, 1);
         }
     }
 

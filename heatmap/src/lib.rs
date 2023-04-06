@@ -39,7 +39,7 @@
 //! which is also of a primitive type, and on most CPU architectures that guarantee
 //! comes "for free". Therefore, `increment` from different threads won't interfere
 //! with each other.
-//
+//!
 //! The summary stats of all time slices can be obtained by summing up counts by
 //! bucket from all active `Histogram` slices. However, this makes `summary`
 //! relatively expensive to perform, as one may need to add hundreds of thousands
@@ -73,7 +73,7 @@
 //! where the the current tick has fallen behind by more than a `Histogram` slice.
 //! When that happens, any `increment`s that fall into the slices to be cleared will
 //! be incorrectly/prematurely erased.
-//!
+
 mod error;
 mod heatmap;
 
