@@ -288,9 +288,8 @@ impl Heatmap {
 
         let behind = tick_at.duration_since(time);
 
-        // slow path when the time falls into the current time slice
         if behind > self.resolution {
-            // the value belonged to a past slice of the histogram
+            // the value belonged to a past slice of the histogram, should be an uncommon path
 
             // first we calculated much before current tick the event happened
             let idx_backward = (behind.as_nanos() / self.resolution.as_nanos()) as usize;
@@ -365,60 +364,58 @@ impl Heatmap {
     // how many ticks the heatmap moved forward.
     fn tick(&self, now: Instant) -> (Instant, usize, usize) {
         loop {
-            loop {
-                let tick_at = self.tick_at.load(Ordering::Relaxed);
-                // this is the common case when a heatmap is frequently updated, such as in a busy
-                // service.
-                if now < tick_at {
-                    return (tick_at, self.slice_idx(tick_at), 0);
-                }
+            let tick_at = self.tick_at.load(Ordering::Relaxed);
+            // this is the common case when a heatmap is frequently updated, such as in a busy
+            // service.
+            if now < tick_at {
+                return (tick_at, self.slice_idx(tick_at), 0);
+            }
 
-                let ticks_forward =
-                    now.duration_since(tick_at).as_nanos() / self.resolution.as_nanos() + 1;
-                let mut new_tick = self.tick_at.load(Ordering::Relaxed);
-                for _ in 0..ticks_forward {
-                    new_tick += self.resolution;
+            let ticks_forward =
+                now.duration_since(tick_at).as_nanos() / self.resolution.as_nanos() + 1;
+            let mut new_tick = self.tick_at.load(Ordering::Relaxed);
+            for _ in 0..ticks_forward {
+                new_tick += self.resolution;
+            }
+            let result = self.tick_at.compare_exchange(
+                tick_at,
+                new_tick,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            );
+            match result {
+                Err(_) => {
+                    // We will loop back to the top and see if the newly stored value is current
+                    // or we still need to move the tick forward
                 }
-                let result = self.tick_at.compare_exchange(
-                    tick_at,
-                    new_tick,
-                    Ordering::AcqRel,
-                    Ordering::Relaxed,
-                );
-                match result {
-                    Err(_) => {
-                        // We will loop back to the top and see if the newly stored value is current
-                        // or we still need to move the tick forward
+                Ok(_) => {
+                    // clean up `Histogram` slices if needed, then return
+                    //
+                    // because the `compare_exchange` operation above was successful, we know
+                    // we have exclusive clean up access to the slices covered between the
+                    // `tick_at` and `new_tick`, i.e. we start from 2 slices to the right of
+                    //  `tick_at`, and stop until we finish clearing slice immediately to
+                    // the right of `new_tick`. When `tick()` is called frequently enough, we
+                    // can assume `new_tick` is just to the right of `tick_at`, and the
+                    // clearing is performed on exactly one slice, which is the slice
+                    // immediately to the right of `new_tick` and 2 over to the right of
+                    // `tick_at`. (The slice immediately to the right of `tick_at` which is
+                    // `new_tick` now points to as current was already cleared previously, due
+                    // to having a buffer slice.)
+                    //
+                    // When the `tick_at` falls further behind, i.e. we need to clear more
+                    // than one slice, the buffer slice allocated can no longer guarantee that
+                    // new `increment`s are against a cleared slice, and reported `summary` may
+                    // be incorrect. We will clear all slices that should be cleared, but /
+                    // do not attempt to correct the staleness or inconsistencies in reporting.
+                    //
+                    // We may revisit this decision in the future.
+                    let mut idx = self.idx_delta(self.slice_idx(tick_at), 1);
+                    for _ in 0..ticks_forward {
+                        idx = self.idx_delta(idx, 1);
+                        let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
                     }
-                    Ok(_) => {
-                        // clean up `Histogram` slices if needed, then return
-                        //
-                        // because the `compare_exchange` operation above was successful, we know
-                        // we have exclusive clean up access to the slices covered between the
-                        // `tick_at` and `new_tick`, i.e. we start from 2 slices to the right of
-                        //  `tick_at`, and stop until we finish clearing slice immediately to
-                        // the right of `new_tick`. When `tick()` is called frequently enough, we
-                        // can assume `new_tick` is just to the right of `tick_at`, and the
-                        // clearing is performed on exactly one slice, which is the slice
-                        // immediately to the right of `new_tick` and 2 over to the right of
-                        // `tick_at`. (The slice immediately to the right of `tick_at` which is
-                        // `new_tick` now points to as current was already cleared previously, due
-                        // to having a buffer slice.)
-                        //
-                        // When the `tick_at` falls further behind, i.e. we need to clear more
-                        // than one slice, the buffer slice allocated can no longer guarantee that
-                        // new `increment`s are against a cleared slice, and reported `summary` may
-                        // be incorrect. We will clear all slices that should be cleared, but /
-                        // do not attempt to correct the staleness or inconsistencies in reporting.
-                        //
-                        // We may revisit this decision in the future.
-                        let mut idx = self.idx_delta(self.slice_idx(tick_at), 1);
-                        for _ in 0..ticks_forward {
-                            idx = self.idx_delta(idx, 1);
-                            let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
-                        }
-                        return (new_tick, self.slice_idx(new_tick), ticks_forward as usize);
-                    }
+                    return (new_tick, self.slice_idx(new_tick), ticks_forward as usize);
                 }
             }
         }
