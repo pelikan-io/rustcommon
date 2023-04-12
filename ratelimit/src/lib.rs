@@ -1,303 +1,470 @@
-// Copyright 2019 Twitter, Inc.
-// Licensed under the Apache License, Version 2.0
-// http://www.apache.org/licenses/LICENSE-2.0
+//! This crate provides a simple implementation of a ratelimiter that can be
+//! shared between threads.
+//!
+//! ```no_run
+//! use ratelimit::Ratelimiter;
+//! use std::time::Duration;
+//!
+//! let ratelimiter = Ratelimiter::builder()
+//!     .refill_rate(100, Duration::from_secs(1))
+//!     .build();
+//!
+//! loop {
+//!     // a simple sleep-wait
+//!     if let Err(sleep) = ratelimiter.try_wait() {
+//!            std::thread::sleep(sleep);
+//!            continue;
+//!     }
+//!     
+//!     // do some ratelimited action here    
+//! }
+//! ```
 
-//! This library provides a thread safe token bucket ratelimitier
+use clocksource::Nanoseconds;
+use core::sync::atomic::{AtomicU64, Ordering};
+use core::time::Duration;
 
-#![deny(clippy::all)]
+type Instant = clocksource::Instant<Nanoseconds<u64>>;
+type AtomicInstant = clocksource::Instant<Nanoseconds<AtomicU64>>;
+type AtomicDuration = clocksource::Duration<Nanoseconds<AtomicU64>>;
 
-use clocksource::*;
-use core::convert::TryFrom;
-use core::sync::atomic::*;
-
-use rand_distr::{Distribution, Normal, Uniform};
-use thiserror::Error;
-
-/// A token bucket ratelimiter
 pub struct Ratelimiter {
     available: AtomicU64,
     capacity: AtomicU64,
-    quantum: AtomicU64,
-    strategy: AtomicUsize,
-    interval: Duration<Nanoseconds<AtomicU64>>,
-    tick_at: Instant<Nanoseconds<AtomicU64>>,
-    normal: Normal<f64>,
-    uniform: Uniform<f64>,
+    refill_amount: AtomicU64,
+    refill_at: AtomicInstant,
+    refill_interval: AtomicDuration,
 }
 
-/// Possible errors while constructing a `Ratelimiter`
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
-    #[error("rate must be > 0")]
-    InvalidRate,
-}
-
-/// Refill strategies define how the token bucket is refilled. The different
-/// strategies can be used to alter the character of the smoothness of the
-/// interval between tokens becoming available
-#[derive(Copy, Clone, Debug)]
-pub enum Refill {
-    /// Use a fixed tick interval resulting in a smooth ratelimit
-    Smooth = 0,
-    /// Use a uniform distribution for tick interval resulting in a ratelimit
-    /// that varies from 2/3 to 3/2 times the specified rate. Resulting in an
-    /// average ratelimit that matches the configured rate.
-    Uniform = 1,
-    /// Use a normal distribution for the tick interval centered on the duration
-    /// matching that of the smooth refill strategy. The distribution used has
-    /// a standard deviation of 2x the mean and results in an average ratelimit
-    /// that matches the configured rate.
-    Normal = 2,
-}
-
-impl TryFrom<usize> for Refill {
-    type Error = ();
-
-    fn try_from(v: usize) -> Result<Self, Self::Error> {
-        match v {
-            x if x == Refill::Smooth as usize => Ok(Refill::Smooth),
-            x if x == Refill::Uniform as usize => Ok(Refill::Uniform),
-            x if x == Refill::Normal as usize => Ok(Refill::Normal),
-            _ => Err(()),
-        }
-    }
-}
-
-const SECOND: u64 = 1_000_000_000;
-
-/// A token bucket ratelimiter
 impl Ratelimiter {
-    /// Create a new token bucket `Ratelimiter` which can hold up to `capacity`
-    /// tokens. `quantum` tokens will be added to the bucket at `rate` times
-    /// per second. The token bucket initially starts without any tokens, this
-    /// ensures the rate does not start high initially.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ratelimit::*;
-    ///
-    /// // ratelimit to 1/s with no burst capacity
-    /// let ratelimiter = Ratelimiter::new(1, 1, 1).unwrap();
-    ///
-    /// // ratelimit to 100/s with bursts up to 10
-    /// let ratelimiter = Ratelimiter::new(10, 1, 100).unwrap();
-    /// ```
-    pub fn new(capacity: u64, quantum: u64, rate: u64) -> Result<Self, Error> {
-        if rate == 0 {
-            return Err(Error::InvalidRate);
-        }
-
-        let interval = SECOND / rate;
-
-        let tick_at =
-            Instant::<Nanoseconds<u64>>::now() + Duration::<Nanoseconds<u64>>::from_nanos(interval);
-
-        Ok(Self {
-            available: AtomicU64::default(),
-            capacity: AtomicU64::new(capacity),
-            quantum: AtomicU64::new(quantum),
-            strategy: AtomicUsize::new(Refill::Smooth as usize),
-            interval: Duration::<Nanoseconds<AtomicU64>>::from_nanos(interval),
-            tick_at: Instant::<Nanoseconds<AtomicU64>>::new(tick_at),
-            normal: Normal::new(interval as f64, 2.0 * interval as f64).unwrap(),
-            uniform: Uniform::new_inclusive(interval as f64 * 0.5, interval as f64 * 1.5),
-        })
+    pub fn builder() -> Builder {
+        Builder::new()
     }
 
-    /// Changes the rate of the `Ratelimiter`. The new rate will be in effect on
-    /// the next tick.
-    pub fn set_rate(&self, rate: u64) -> Result<(), Error> {
-        if rate == 0 {
-            return Err(Error::InvalidRate);
+    /// Return the current effective rate of the Ratelimiter in tokens/second
+    pub fn rate(&self) -> f64 {
+        self.refill_amount.load(Ordering::Relaxed) as f64 * 1_000_000_000.0
+            / self.refill_interval.load(Ordering::Relaxed).as_nanos() as f64
+    }
+
+    /// Return the current interval between refills
+    pub fn refill_interval(&self) -> Duration {
+        Duration::from_nanos(self.refill_interval.load(Ordering::Relaxed).as_nanos())
+    }
+
+    /// Return the current number of tokens to be added on each refill
+    pub fn refill_amount(&self) -> u64 {
+        self.refill_amount.load(Ordering::Relaxed)
+    }
+
+    /// Internal function to refill the token bucket. Called as part of
+    /// `try_wait()`
+    fn refill(&self, time: Instant) -> Result<(), core::time::Duration> {
+        let mut interval = self.refill_interval.load(Ordering::Relaxed);
+        let mut refill_amount = self.refill_amount.load(Ordering::Relaxed);
+
+        let mut intervals;
+
+        loop {
+            // determine when next refill should occur
+            let refill_at = self.refill_at.load(Ordering::Relaxed);
+
+            // if this time is before the next refill is due, return
+            if time < refill_at {
+                return Err(core::time::Duration::from_nanos(
+                    (refill_at - time).as_nanos(),
+                ));
+            }
+
+            intervals = (time - refill_at).as_nanos() / interval.as_nanos() + 1;
+
+            // calculate when the following refill would be
+            let next_refill = refill_at
+                + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(
+                    intervals * interval.as_nanos(),
+                );
+
+            // compare/exchange, if race, loop and check if we still need to
+            // refill before trying again
+            if self
+                .refill_at
+                .compare_exchange(refill_at, next_refill, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                break;
+            }
+
+            // if we lost the compare/exchange, these may have changed in the
+            // meantime (by updating the rate in another thread)
+            interval = self.refill_interval.load(Ordering::Relaxed);
+            refill_amount = self.refill_amount.load(Ordering::Relaxed);
         }
 
-        self.interval.store(
-            Duration::<Nanoseconds<u64>>::from_nanos(SECOND / rate),
-            Ordering::Relaxed,
-        );
+        // figure out how many tokens we might add
+        let amount = intervals * refill_amount;
+
+        let available = self.available.load(Ordering::Acquire);
+        let capacity = self.capacity.load(Ordering::Relaxed);
+
+        println!("capacity: {capacity}");
+
+        if available + amount >= capacity {
+            println!("saturating");
+            self.available
+                .fetch_add(capacity - available, Ordering::Release);
+        } else {
+            println!("adding");
+            self.available.fetch_add(amount, Ordering::Release);
+        }
 
         Ok(())
     }
 
-    /// Returns the current rate
-    pub fn rate(&self) -> u64 {
-        SECOND * self.quantum.load(Ordering::Relaxed)
-            / self.interval.load(Ordering::Relaxed).as_nanos()
-    }
+    /// Non-blocking function to "wait" for a single token. On success, a single
+    /// token has been acquired. On failure, a `Duration` hinting at when the
+    /// next refill would occur is returned.
+    pub fn try_wait(&self) -> Result<(), core::time::Duration> {
+        let refill_result = self.refill(Instant::now());
 
-    /// Changes the refill strategy
-    pub fn set_strategy(&self, strategy: Refill) {
-        self.strategy.store(strategy as usize, Ordering::Relaxed)
-    }
-
-    // internal function to move the time forward
-    fn tick(&self) {
-        // get the time when tick() was called
-        let now = Instant::<Nanoseconds<u64>>::now();
-
-        // we loop here so that if we lose the compare_exchange, we can try
-        // again if tick_at has not advanced far enough
         loop {
-            // load the current value
-            let tick_at = self.tick_at.load(Ordering::Relaxed);
-
-            // if `tick_at` is in the future, we return.
-            if tick_at > now {
-                return;
+            let available = self.available.load(Ordering::Acquire);
+            if available == 0 {
+                refill_result?
             }
 
-            // Depending on our refill strategy, we have different ways to
-            // calculate how many `ticks` have elapsed.
-            let (next, ticks) = match Refill::try_from(self.strategy.load(Ordering::Relaxed)) {
-                Ok(Refill::Smooth) | Err(_) => {
-                    // This case is the most straightforward, since the interval
-                    // between ticks is constant, we can directly calculate how
-                    // many have elapsed.
+            let new = available.saturating_sub(1);
 
-                    let interval = self.interval.load(Ordering::Relaxed);
-
-                    let ticks = 1 + (now - tick_at).as_nanos() / interval.as_nanos();
-                    let next = tick_at
-                        + Duration::<Nanoseconds<u64>>::from_nanos(interval.as_nanos() * ticks);
-
-                    (next, ticks)
-                }
-                Ok(Refill::Uniform) => {
-                    // For this refill strategy, the tick interval is variable.
-                    // Therefore, we must sample the distribution repeatedly to
-                    // determine how many ticks would have elapsed.
-
-                    let mut tick_to = tick_at;
-                    let mut ticks = 0;
-
-                    while tick_to <= tick_at {
-                        tick_to += Duration::<Nanoseconds<u64>>::from_nanos(
-                            self.uniform.sample(&mut rand::thread_rng()) as u64,
-                        );
-                        ticks += 1;
-                    }
-
-                    (tick_to, ticks)
-                }
-                Ok(Refill::Normal) => {
-                    // For this refill strategy, the tick interval is variable.
-                    // Therefore, we must sample the distribution repeatedly to
-                    // determine how many ticks would have elapsed.
-
-                    let mut next = tick_at;
-                    let mut ticks = 0;
-
-                    while next <= tick_at {
-                        next += Duration::<Nanoseconds<u64>>::from_nanos(
-                            self.normal.sample(&mut rand::thread_rng()) as u64,
-                        );
-                        ticks += 1;
-                    }
-
-                    (next, ticks)
-                }
-            };
-
-            // Now we attempt to atomically update `tick_at`. If we lose the
-            // race, we will loop and find we hit one of two cases:
-            // - `tick_at` has advanced into the future and we early return
-            // - `tick_at` has advanced, but is not in the future, so we need to
-            //    recalculate how many ticks to advance by and attempt the
-            //    compare/exchange again
             if self
-                .tick_at
-                .compare_exchange(tick_at, next, Ordering::SeqCst, Ordering::SeqCst)
+                .available
+                .compare_exchange(available, new, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
             {
-                let tokens = self.quantum.load(Ordering::Relaxed) * ticks;
-                let capacity = self.capacity.load(Ordering::Relaxed);
-                let available = self.available.load(Ordering::Relaxed);
-                if available + tokens >= capacity {
-                    self.available
-                        .fetch_add(capacity - available, Ordering::Relaxed);
-                } else {
-                    self.available.fetch_add(tokens, Ordering::Relaxed);
-                }
+                // println!("anywhere");
+                return Ok(());
             }
         }
     }
+}
 
-    /// Non-blocking wait for one token, returns an `Ok` if a token was
-    /// successfully acquired, returns an `Err` if it would block.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ratelimit::*;
-    ///
-    /// let ratelimiter = Ratelimiter::new(1, 1, 100).unwrap();
-    /// for i in 0..100 {
-    ///     // do some work here
-    ///     while ratelimiter.try_wait().is_err() {
-    ///         // do some other work
-    ///     }
-    /// }
-    /// ```
-    pub fn try_wait(&self) -> Result<(), std::io::Error> {
-        self.tick();
-        let mut current = self.available.load(Ordering::Relaxed);
-        while current > 0 {
-            match self.available.compare_exchange(
-                current,
-                current - 1,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => return Ok(()),
-                Err(v) => {
-                    current = v;
-                }
-            }
+pub struct Builder {
+    available: u64,
+    capacity: u64,
+    refill_amount: Option<u64>,
+    refill_interval: Option<Duration>,
+    refill_rate: (u64, Duration),
+}
+
+impl Builder {
+    fn new() -> Self {
+        Self {
+            available: 1,
+            capacity: 0,
+            refill_amount: None,
+            refill_interval: None,
+            refill_rate: (1, Duration::from_secs(1)),
         }
-        Err(std::io::Error::new(
-            std::io::ErrorKind::WouldBlock,
-            "no tokens in bucket",
-        ))
     }
 
-    /// Blocking wait implemented as a busy loop. Returns only after a token is
-    /// successfully acquired
+    /// Set the capacity of the `Ratelimiter`. This limits the size of any
+    /// bursts by limiting the number of tokens the ratelimiter can have
+    /// available at any time.
     ///
-    /// # Examples
+    /// Capacity will be increased automatically under any of these conditions:
+    /// * `capacity` was set to zero
+    /// * `refill_amount` was set higher than the capacity
+    /// * `refill_rate` is high enough to require adding more tokens per refill
+    ///    event than the capacity would otherwise allow
+    pub fn capacity(mut self, capacity: u64) -> Self {
+        self.capacity = std::cmp::max(1, capacity);
+        self
+    }
+
+    /// Set the number of tokens that are initially available. For admission
+    /// control scenarios, you may wish for there to be some tokens initially
+    /// available to avoid delays or discards until the ratelimit is hit. When
+    /// using it to enforce a ratelimit on your own process, for example when
+    /// generating outbound requests, you may want there to be no tokens
+    /// availble initially to make your application more well-behaved in event
+    /// of process restarts.
     ///
-    /// ```
-    /// use ratelimit::*;
+    /// The default is that no tokens are initially available.
+    pub fn available(mut self, tokens: u64) -> Self {
+        self.available = tokens;
+        self
+    }
+
+    /// Specify the rate at which tokens refill the bucket. Unless the refill
+    /// burst has been set, the default behavior is to spread these tokens
+    /// evenly across time when possible.
     ///
-    /// let ratelimiter = Ratelimiter::new(1, 1, 100).unwrap();
-    /// for i in 0..100 {
-    ///     // do some work here
-    ///     ratelimiter.wait();
-    /// }
-    /// ```
-    pub fn wait(&self) {
-        while self.try_wait().is_err() {}
+    /// You can use this in combination with either `refill_amount` or
+    /// `refill_interval` to modify this behavior.
+    ///
+    /// The actual rate may be slightly lower under some conditions.
+    pub fn refill_rate(mut self, tokens: u64, interval: Duration) -> Self {
+        self.refill_rate = (
+            std::cmp::max(1, tokens),
+            std::cmp::max(interval, Duration::from_nanos(1)),
+        );
+        self
+    }
+
+    /// Specify the exact number of tokens to add on each refill. If the refill
+    /// interval is not specified, it will be calculated from the refill rate
+    /// and the amount of tokens specified here. Otherwise, the provided number
+    /// of tokens will be added at each refill interval.
+    pub fn refill_amount(mut self, tokens: u64) -> Self {
+        self.refill_amount = Some(std::cmp::max(1, tokens));
+        self
+    }
+
+    /// Specify the exact refill interval. If the refill amount is not
+    /// specified, it will be calculated from the refill rate and this interval.
+    /// Otherwise, at each refill interval, the refill amount of tokens are
+    /// added.
+    pub fn refill_interval(mut self, interval: Duration) -> Self {
+        self.refill_interval = Some(std::cmp::max(interval, Duration::from_nanos(1)));
+        self
+    }
+
+    /// Consumes this `Builder` and produces a `Ratelimiter`.
+    pub fn build(self) -> Ratelimiter {
+        let (amount, interval) = match (self.refill_amount, self.refill_interval) {
+            (Some(amount), Some(interval)) => {
+                // if we have an explicit amount and interval, use those
+                // directly
+                (amount, interval.as_nanos() as u64)
+            }
+            (Some(amount), None) => {
+                let a = self.refill_rate.0;
+                let i = self.refill_rate.1.as_nanos() as u64;
+
+                // tokens per nanosecond
+                let target_rate = a as f64 / i as f64;
+
+                let interval = (amount as f64 / target_rate).round() as u64;
+
+                (amount, interval)
+            }
+            (None, Some(interval)) => {
+                let a = self.refill_rate.0;
+                let i = self.refill_rate.1.as_nanos() as u64;
+
+                // tokens per nanosecond
+                let target_rate = a as f64 / i as f64;
+
+                let amount = (interval.as_nanos() as u64 as f64 * target_rate).round() as u64;
+                let interval = interval.as_nanos() as u64;
+
+                (amount, interval)
+            }
+            (None, None) => {
+                // work out an amount and interval based on the rate
+
+                let mut amount = self.refill_rate.0;
+                let mut interval = self.refill_rate.1.as_nanos() as u64;
+
+                // copy the original values for use later
+                let a = amount;
+                let i = interval;
+
+                // reduce things to the smallest amount and interval possible
+                let gcd = gcd(amount, interval);
+                amount /= gcd;
+                interval /= gcd;
+
+                // scale things up to reduce bookeeping
+                while interval < 100 {
+                    amount += a;
+                    interval += i;
+                }
+
+                (amount, interval)
+            }
+        };
+
+        let available = AtomicU64::new(self.available);
+        let capacity = AtomicU64::new(std::cmp::max(self.capacity, amount));
+
+        let refill_amount = AtomicU64::new(amount);
+        let refill_at = AtomicInstant::new(
+            Instant::now() + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(interval),
+        );
+        let refill_interval = AtomicDuration::from_nanos(interval);
+
+        Ratelimiter {
+            available,
+            capacity,
+            refill_amount,
+            refill_at,
+            refill_interval,
+        }
+    }
+}
+
+// Taken from Wikipedia: https://en.wikipedia.org/wiki/Binary_GCD_algorithm
+pub fn gcd(mut u: u64, mut v: u64) -> u64 {
+    use std::cmp::min;
+    use std::mem::swap;
+
+    // Base cases: gcd(n, 0) = gcd(0, n) = n
+    if u == 0 {
+        return v;
+    } else if v == 0 {
+        return u;
+    }
+
+    // Using identities 2 and 3:
+    // gcd(2ⁱ u, 2ʲ v) = 2ᵏ gcd(u, v) with u, v odd and k = min(i, j)
+    // 2ᵏ is the greatest power of two that divides both u and v
+    let i = u.trailing_zeros();
+    u >>= i;
+    let j = v.trailing_zeros();
+    v >>= j;
+    let k = min(i, j);
+
+    loop {
+        // u and v are odd at the start of the loop
+        debug_assert!(u % 2 == 1, "u = {} is even", u);
+        debug_assert!(v % 2 == 1, "v = {} is even", v);
+
+        // Swap if necessary so u <= v
+        if u > v {
+            swap(&mut u, &mut v);
+        }
+        // u and v are still both odd after (potentially) swapping
+
+        // Using identity 4 (gcd(u, v) = gcd(|v-u|, min(u, v))
+        v -= u;
+        // v is now even, but u is unchanged (and odd)
+
+        // Identity 1: gcd(u, 0) = u
+        // The shift by k is necessary to add back the 2ᵏ factor that was removed before the loop
+        if v == 0 {
+            return u << k;
+        }
+
+        // Identity 3: gcd(u, 2ʲ v) = gcd(u, v) (u is known to be odd)
+        v >>= v.trailing_zeros();
+        // v is now odd again
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{thread::sleep, time::Duration};
+    use crate::*;
+    use std::time::{Duration, Instant};
 
-    use crate::Ratelimiter;
+    macro_rules! approx_eq {
+        ($value:expr, $target:expr) => {
+            let value: f64 = $value;
+            let target: f64 = $target;
+            assert!(value >= target * 0.999, "{value} >= {}", target * 0.999);
+            assert!(value <= target * 1.001, "{value} <= {}", target * 1.001);
+        };
+    }
 
+    // test that the configured rate and calculated effective rate are close
     #[test]
-    fn should_not_burst_beyond_capacity() {
-        let rl = Ratelimiter::new(1, 1, 1000).unwrap();
+    pub fn rate() {
+        // rate
+        let rl = Ratelimiter::builder()
+            .refill_rate(100000, Duration::from_secs(1))
+            .build();
 
-        // Sleep 100ms
-        sleep(Duration::from_millis(100));
+        approx_eq!(rl.rate(), 100000.0);
 
-        let mut tokens = 0;
-        while rl.try_wait().is_ok() {
-            tokens += 1;
+        let rl = Ratelimiter::builder()
+            .refill_rate(3, Duration::from_secs(1))
+            .build();
+
+        approx_eq!(rl.rate(), 3.0);
+
+        let rl = Ratelimiter::builder()
+            .refill_rate(333333333, Duration::from_secs(1))
+            .build();
+
+        approx_eq!(rl.rate(), 333333333.0);
+
+        // amount + interval
+        let rl = Ratelimiter::builder()
+            .refill_amount(4)
+            .refill_interval(Duration::from_nanos(333))
+            .build();
+
+        approx_eq!(rl.rate(), 12012012.0);
+
+        // interval + rate
+        let rl = Ratelimiter::builder()
+            .refill_rate(333333333, Duration::from_secs(1))
+            .refill_interval(Duration::from_nanos(333))
+            .build();
+
+        approx_eq!(rl.rate(), 333333333.0);
+
+        // amount + rate
+        let rl = Ratelimiter::builder()
+            .refill_rate(333333333, Duration::from_secs(1))
+            .refill_amount(4)
+            .build();
+
+        approx_eq!(rl.rate(), 333333333.0);
+    }
+
+    // quick test that a ratelimiter yields tokens at the desired rate
+    #[test]
+    pub fn wait() {
+        let rl = Ratelimiter::builder()
+            .refill_rate(100000, Duration::from_secs(1))
+            .build();
+
+        let mut count = 0;
+
+        let now = Instant::now();
+        let end = now + Duration::from_millis(10);
+        while Instant::now() < end {
+            if rl.try_wait().is_ok() {
+                count += 1;
+            }
         }
 
-        assert_eq!(tokens, 1);
+        assert!(count >= 900);
+        assert!(count <= 1100);
+    }
+
+    // quick test that an idle ratelimiter doesn't build up excess capacity
+    #[test]
+    pub fn idle() {
+        let rl = Ratelimiter::builder()
+            .refill_rate(1000, Duration::from_secs(1))
+            .available(1)
+            .build();
+
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_err());
+    }
+
+    // quick test that capacity acts as expected
+    #[test]
+    pub fn capacity() {
+        let rl = Ratelimiter::builder()
+            .refill_rate(100, Duration::from_secs(1))
+            .capacity(10)
+            .available(0)
+            .build();
+
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_ok());
+        assert!(rl.try_wait().is_err());
     }
 }
