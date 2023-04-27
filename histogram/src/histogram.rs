@@ -327,7 +327,6 @@ impl Histogram {
 
             buckets: buckets.into(),
         }
-        
     }
 
     /// Stores the counts from the other `Histogram` into this `Histogram.
@@ -354,7 +353,7 @@ impl Histogram {
     /// Merges counts from the other `Histogram` into this `Histogram`. Returns
     /// an error if there are differences in the configurations of both
     /// `Histogram`s.
-    #[deprecated(since="0.8.0", note="please use `add` instead")]
+    #[deprecated(since = "0.8.0", note = "please use `add` instead")]
     pub fn merge(&self, other: &Self) -> Result<(), Error> {
         self.add(other)
     }
