@@ -35,7 +35,6 @@ pub struct Heatmap {
     start_ts: UnixInstant, // reading of the systems time (e.g. from `CLOCK_REALTIME`)
     tick_origin: Instant,  // reference point (on the monolitic clock) of the `Heatmap`
 
-    summary: Histogram,
     histograms: Vec<Histogram>,
 
     // the instant that the current slice should be "current" until, this is used to
@@ -222,7 +221,6 @@ impl Heatmap {
             resolution,
             start_ts,
             tick_origin,
-            summary: Histogram::new(m, r, n)?,
             histograms,
             tick_at,
         })
@@ -370,15 +368,6 @@ impl Heatmap {
         self.into_iter()
     }
 
-    /// Access the summary histogram of this heatmap.
-    ///
-    /// Note that concurrent modifications to the heatmap will continue to show
-    /// up in the summary histogram while it is being read so sequential
-    /// queries may not return consistent results.
-    pub fn summary(&self) -> &Histogram {
-        &self.summary
-    }
-
     fn idx_delta(&self, idx: usize, delta: i64) -> usize {
         (idx + (self.slices() as i64 + delta) as usize) % self.slices()
     }
@@ -465,7 +454,6 @@ impl Clone for Heatmap {
         let resolution = self.resolution;
         let start_ts = self.start_ts;
         let tick_origin = self.tick_origin;
-        let summary = self.summary.clone();
         let histograms = self.histograms.clone();
         let tick_at = AtomicInstant::new(tick_origin + resolution);
 
@@ -474,7 +462,6 @@ impl Clone for Heatmap {
             resolution,
             start_ts,
             tick_origin,
-            summary,
             histograms,
             tick_at,
         }
