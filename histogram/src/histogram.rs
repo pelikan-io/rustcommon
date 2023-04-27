@@ -301,34 +301,6 @@ impl Histogram {
         Ok(result)
     }
 
-    /// Creates a copy of this `Histogram` by loading all the values.
-    pub fn load(&self) -> Self {
-        let mut buckets = Vec::new();
-        buckets.resize_with(self.buckets.len(), || AtomicU32::new(0));
-
-        for (idx, value) in self
-            .buckets
-            .iter()
-            .map(|v| v.load(Ordering::Relaxed))
-            .enumerate()
-        {
-            buckets[idx].store(value, Ordering::Relaxed);
-        }
-
-        Self {
-            m: self.m,
-            r: self.r,
-            n: self.n,
-
-            M: self.M,
-            R: self.R,
-            N: self.N,
-            G: self.G,
-
-            buckets: buckets.into(),
-        }
-    }
-
     /// Stores the counts from the other `Histogram` into this `Histogram.
     /// Returns an error if there are differences in the configurations of both
     /// `Histogram`s.

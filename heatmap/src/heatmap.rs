@@ -331,8 +331,8 @@ impl Heatmap {
 
         let oldest_idx = self.idx_delta(idx, -((self.histograms.len() - 1) as i64));
 
-        let oldest = self.histograms[oldest_idx].load();
-        let latest = self.histograms[idx].load();
+        let oldest = self.histograms[oldest_idx].clone();
+        let latest = self.histograms[idx].clone();
 
         let _ = latest.subtract(&oldest);
 
@@ -356,8 +356,8 @@ impl Heatmap {
         let (_tick_at, idx, _ntick) = self.tick(Instant::now());
 
         let oldest_idx = self.idx_delta(idx, -((self.histograms.len() - 1) as i64));
-        let oldest = self.histograms[oldest_idx].load();
-        let latest = self.histograms[idx].load();
+        let oldest = self.histograms[oldest_idx].clone();
+        let latest = self.histograms[idx].clone();
 
         let _ = latest.subtract(&oldest);
 
