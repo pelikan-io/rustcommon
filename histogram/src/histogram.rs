@@ -151,7 +151,6 @@ impl Histogram {
     /// the provided `count`.
     ///
     /// This operation wraps on overflow.
-    #[allow(clippy::result_unit_err)]
     pub fn increment(&self, value: u64, count: u32) -> Result<(), Error> {
         if value > self.N {
             // value too big
@@ -168,7 +167,6 @@ impl Histogram {
     /// the provided `count`.
     ///
     /// This operation wraps on overflow.
-    #[allow(clippy::result_unit_err)]
     pub fn decrement(&self, value: u64, count: u32) -> Result<(), Error> {
         if value > self.N {
             // value too big
@@ -303,11 +301,68 @@ impl Histogram {
         Ok(result)
     }
 
+    /// Creates a copy of this `Histogram` by loading all the values.
+    pub fn load(&self) -> Self {
+        let mut buckets = Vec::new();
+        buckets.resize_with(self.buckets.len(), || AtomicU32::new(0));
+
+        for (idx, value) in self
+            .buckets
+            .iter()
+            .map(|v| v.load(Ordering::Relaxed))
+            .enumerate()
+        {
+            buckets[idx].store(value, Ordering::Relaxed);
+        }
+
+        Self {
+            m: self.m,
+            r: self.r,
+            n: self.n,
+
+            M: self.M,
+            R: self.R,
+            N: self.N,
+            G: self.G,
+
+            buckets: buckets.into(),
+        }
+        
+    }
+
+    /// Stores the counts from the other `Histogram` into this `Histogram.
+    /// Returns an error if there are differences in the configurations of both
+    /// `Histogram`s.
+    pub fn store(&self, other: &Self) -> Result<(), Error> {
+        // make sure they match
+        if self.m != other.m || self.r != other.r || self.n != other.n {
+            return Err(Error::IncompatibleHistogram);
+        }
+
+        for (idx, value) in other
+            .buckets
+            .iter()
+            .map(|v| v.load(Ordering::Relaxed))
+            .enumerate()
+        {
+            self.buckets[idx].store(value, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
     /// Merges counts from the other `Histogram` into this `Histogram`. Returns
     /// an error if there are differences in the configurations of both
     /// `Histogram`s.
-    #[allow(clippy::result_unit_err)]
+    #[deprecated(since="0.8.0", note="please use `add` instead")]
     pub fn merge(&self, other: &Self) -> Result<(), Error> {
+        self.add(other)
+    }
+
+    /// Adds the counts from the other `Histogram` into this `Histogram. Returns
+    /// an error if there are differences in the configurations of both
+    /// `Histogram`s.
+    pub fn add(&self, other: &Self) -> Result<(), Error> {
         // make sure they match
         if self.m != other.m || self.r != other.r || self.n != other.n {
             return Err(Error::IncompatibleHistogram);

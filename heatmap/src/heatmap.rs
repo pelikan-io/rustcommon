@@ -5,6 +5,7 @@
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
+pub use histogram::Percentile;
 use std::cmp::min;
 
 use histogram::{Bucket, Histogram};
@@ -271,7 +272,7 @@ impl Heatmap {
     /// Returns the number of buckets stored within each `Histogram` in the
     /// `Heatmap`
     pub fn buckets(&self) -> usize {
-        self.summary.buckets()
+        self.histograms[0].buckets()
     }
 
     /// Returns the number of valid and active `Histogram` slices in the `Heatmap`
@@ -298,10 +299,12 @@ impl Heatmap {
                 return Err(Error::OutOfSpan);
             }
 
-            idx = self.idx_delta(idx, -(idx_backward as i64));
+            for offset in 1..=idx_backward {
+                idx = self.idx_delta(idx, -(offset as i64));
+                self.histograms[idx].increment(value, count)?;
+            }
         }
 
-        self.summary.increment(value, count)?;
         self.histograms[idx].increment(value, count)?;
         if ntick <= 1 {
             Ok(())
@@ -324,8 +327,41 @@ impl Heatmap {
     /// threads are not writing into the heatmap while this function is
     /// in-progress.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        self.tick(Instant::now());
-        self.summary.percentile(percentile).map_err(Error::from)
+        let (_tick_at, idx, _ntick) = self.tick(Instant::now());
+
+        let oldest_idx = self.idx_delta(idx, -((self.histograms.len() - 1) as i64));
+
+        let oldest = self.histograms[oldest_idx].load();
+        let latest = self.histograms[idx].load();
+
+        let _ = latest.subtract(&oldest);
+
+        latest.percentile(percentile).map_err(Error::from)
+    }
+
+    /// Return the nearest value for the requested percentile (0.0 - 100.0)
+    /// across the total range of samples retained in the `Heatmap`.
+    ///
+    /// Note: since the heatmap stores a distribution across a configured time
+    /// span, sequential calls to fetch the percentile might result in different
+    /// results even without concurrent writers. For instance, you may see a
+    /// 90th percentile that is higher than the 100th percentile depending on
+    /// the timing of calls to this function and the distribution of your data.
+    ///
+    /// Note: concurrent writes may also effect the value returned by this
+    /// function. Users needing better consistency should ensure that other
+    /// threads are not writing into the heatmap while this function is
+    /// in-progress.
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<Percentile>, Error> {
+        let (_tick_at, idx, _ntick) = self.tick(Instant::now());
+
+        let oldest_idx = self.idx_delta(idx, -((self.histograms.len() - 1) as i64));
+        let oldest = self.histograms[oldest_idx].load();
+        let latest = self.histograms[idx].load();
+
+        let _ = latest.subtract(&oldest);
+
+        latest.percentiles(percentiles).map_err(Error::from)
     }
 
     /// Creates an iterator to iterate over the component histograms of this
@@ -410,10 +446,11 @@ impl Heatmap {
                     // do not attempt to correct the staleness or inconsistencies in reporting.
                     //
                     // We may revisit this decision in the future.
-                    let mut idx = self.idx_delta(self.slice_idx(tick_at), 1);
-                    for _ in 0..ticks_forward {
-                        idx = self.idx_delta(idx, 1);
-                        let _ = self.summary.subtract_and_clear(&self.histograms[idx]);
+                    let idx = self.idx_delta(self.slice_idx(tick_at), 1);
+                    for offset in 0..ticks_forward {
+                        let prev = self.idx_delta(idx, offset as i64 - 1);
+                        let next = self.idx_delta(idx, offset as i64);
+                        let _ = self.histograms[next].store(&self.histograms[prev]);
                     }
                     return (new_tick, self.slice_idx(new_tick), ticks_forward as usize);
                 }
@@ -475,13 +512,10 @@ impl<'a> Iterator for Iter<'a> {
         if self.count >= self.inner.active_slices() {
             None
         } else {
-            let bucket = self.inner.histograms.get(self.index);
-            self.index += 1;
-            if self.index >= self.inner.slices() {
-                self.index = 0;
-            }
+            let histogram = self.inner.histograms.get(self.index);
+            self.index = self.inner.idx_delta(self.index, 1);
             self.count += 1;
-            bucket
+            histogram
         }
     }
 }
