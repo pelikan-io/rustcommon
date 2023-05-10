@@ -121,4 +121,22 @@ mod tests {
             Some(10010623)
         );
     }
+
+    #[test]
+    fn test_increment_and_decrement() {
+        let histogram = Histogram::builder().build().unwrap();
+        assert_eq!(
+            histogram.percentile(0.0).map(|b| b.count()),
+            Err(Error::Empty)
+        );
+
+        histogram.increment(1, 1).unwrap();
+        assert_eq!(histogram.percentile(0.0).map(|b| b.count()), Ok(1));
+
+        histogram.decrement(1, 1).unwrap();
+        assert_eq!(
+            histogram.percentile(0.0).map(|b| b.count()),
+            Err(Error::Empty)
+        );
+    }
 }
