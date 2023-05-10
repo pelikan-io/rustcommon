@@ -176,7 +176,7 @@ impl Histogram {
         }
 
         let index = self.bucket_index(value);
-        self.buckets[index].fetch_add(count, Ordering::Relaxed);
+        self.buckets[index].fetch_sub(count, Ordering::Relaxed);
 
         Ok(())
     }
