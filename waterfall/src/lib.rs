@@ -6,7 +6,9 @@
 
 mod palettes;
 
-use clocksource::{DateTime, Nanoseconds, UnixInstant};
+use clocksource::datetime::DateTime;
+use clocksource::precise::UnixInstant;
+// use clocksource::{DateTime, Nanoseconds, UnixInstant};
 use heatmap::*;
 pub use palettes::Palette;
 
@@ -187,7 +189,7 @@ impl WaterfallBuilder {
         }
 
         // add the timestamp labels along the left side
-        let now = UnixInstant::<Nanoseconds<u64>>::now();
+        let now = UnixInstant::now();
         let mut display_time = heatmap.start_at();
         let ntick = (1 + now.duration_since(display_time).as_nanos()
             / heatmap.resolution().as_nanos()) as usize;

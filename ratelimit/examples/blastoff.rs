@@ -2,7 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use clocksource::{DateTime, SecondsFormat};
+use clocksource::precise::UnixInstant;
+use clocksource::datetime::DateTime;
 use ratelimit::Ratelimiter;
 
 fn main() {
@@ -11,7 +12,7 @@ fn main() {
         limiter.wait();
         println!(
             "{}: T -{}",
-            DateTime::now().to_rfc3339_opts(SecondsFormat::Millis, false),
+            DateTime::from(UnixInstant::now()),
             10 - i
         );
     }

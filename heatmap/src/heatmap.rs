@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use clocksource::precise::UnixInstant;
 use crate::Error;
 use crate::*;
 use core::sync::atomic::*;
@@ -9,8 +10,6 @@ pub use histogram::Percentile;
 use std::cmp::min;
 
 use histogram::{Bucket, Histogram};
-
-type UnixInstant = clocksource::UnixInstant<Nanoseconds<u64>>;
 
 /// A `Heatmap` stores counts for timestamped values over a configured span of
 /// time.
@@ -74,7 +73,7 @@ impl Builder {
             let system_now = UnixInstant::now();
             let delta = Duration::from_nanos(
                 system_now
-                    .duration_since(UnixInstant::from_nanos(0))
+                    .duration_since(UnixInstant::EPOCH)
                     .as_nanos()
                     % self.resolution.as_nanos(),
             );

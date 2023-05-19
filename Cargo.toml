@@ -3,6 +3,7 @@ members = [
     "awaken",
     "clocksource",
     "heatmap",
+    "heatmap2",
     "histogram",
     "metriken",
     "metriken/derive",

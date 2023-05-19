@@ -95,7 +95,7 @@ pub use metriken_derive::to_lowercase;
 #[doc(hidden)]
 pub mod export {
     pub extern crate linkme;
-    pub use clocksource::{Duration, Nanoseconds};
+    pub use clocksource::precise::Duration;
 
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];
@@ -154,8 +154,8 @@ macro_rules! heatmap {
                 .maximum_value($max as _)
                 .min_resolution(1)
                 .min_resolution_range(1024)
-                .span($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(60))
-                .resolution($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(1))
+                .span($crate::export::Duration::from_secs(60))
+                .resolution($crate::export::Duration::from_secs(1))
                 .build()
                 .expect("bad heatmap configuration")
         });
@@ -171,8 +171,8 @@ macro_rules! heatmap {
                 .maximum_value($max as _)
                 .min_resolution(1)
                 .min_resolution_range(1024)
-                .span($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(60))
-                .resolution($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(1))
+                .span($crate::export::Duration::from_secs(60))
+                .resolution($crate::export::Duration::from_secs(1))
                 .build()
                 .expect("bad heatmap configuration")
         });

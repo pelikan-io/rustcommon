@@ -78,13 +78,8 @@
 mod error;
 mod heatmap;
 
-use clocksource::Nanoseconds;
-use core::sync::atomic::AtomicU64;
-
 pub use self::heatmap::Heatmap;
 pub use error::Error;
 
-pub type Instant = clocksource::Instant<Nanoseconds<u64>>;
-pub type Duration = clocksource::Duration<Nanoseconds<u64>>;
-
-type AtomicInstant = clocksource::Instant<Nanoseconds<AtomicU64>>;
+pub use clocksource::precise::{Duration, Instant};
+use clocksource::precise::AtomicInstant;

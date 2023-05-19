@@ -6,7 +6,7 @@
 
 #![deny(clippy::all)]
 
-use clocksource::*;
+use clocksource::precise::{AtomicDuration, AtomicInstant, Duration, Instant};
 use core::convert::TryFrom;
 use core::sync::atomic::*;
 
@@ -18,8 +18,8 @@ pub struct Ratelimiter {
     capacity: AtomicU64,
     quantum: AtomicU64,
     strategy: AtomicUsize,
-    tick: Duration<Nanoseconds<AtomicU64>>,
-    next: Instant<Nanoseconds<AtomicU64>>,
+    tick: AtomicDuration,
+    next: AtomicInstant,
     normal: Normal<f64>,
     uniform: Uniform<f64>,
 }
@@ -82,8 +82,8 @@ impl Ratelimiter {
             capacity: AtomicU64::new(capacity),
             quantum: AtomicU64::new(quantum),
             strategy: AtomicUsize::new(Refill::Smooth as usize),
-            tick: Duration::<Nanoseconds<AtomicU64>>::from_nanos(tick),
-            next: Instant::<Nanoseconds<AtomicU64>>::now(),
+            tick: AtomicDuration::from_nanos(tick),
+            next: AtomicInstant::now(),
             normal: Normal::new(tick as f64, 2.0 * tick as f64).unwrap(),
             uniform: Uniform::new_inclusive(tick as f64 * 0.5, tick as f64 * 1.5),
         }
@@ -93,7 +93,7 @@ impl Ratelimiter {
     /// the next tick.
     pub fn set_rate(&self, rate: u64) {
         self.tick.store(
-            Duration::<Nanoseconds<u64>>::from_nanos(
+            Duration::from_nanos(
                 SECOND / (rate / self.quantum.load(Ordering::Relaxed)),
             ),
             Ordering::Relaxed,
@@ -112,7 +112,7 @@ impl Ratelimiter {
 
     // internal function to move the time forward
     fn tick(&self) {
-        let now = Instant::<Nanoseconds<u64>>::now();
+        let now = Instant::now();
         let next = self.next.load(Ordering::Relaxed);
         if now >= next {
             let strategy = Refill::try_from(self.strategy.load(Ordering::Relaxed));
@@ -126,7 +126,7 @@ impl Ratelimiter {
                 .next
                 .compare_exchange(
                     next,
-                    next + Duration::<Nanoseconds<u64>>::from_nanos(tick),
+                    next + Duration::from_nanos(tick),
                     Ordering::SeqCst,
                     Ordering::SeqCst,
                 )

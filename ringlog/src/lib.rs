@@ -52,7 +52,6 @@ pub use sampling::*;
 pub use single::*;
 pub use traits::*;
 
-use clocksource::DateTime;
 use mpmc::Queue;
 
 pub(crate) type LogBuffer = Vec<u8>;

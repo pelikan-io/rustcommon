@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use clocksource::precise::UnixInstant;
 use crate::*;
 use std::io::{Error, Write};
 
@@ -40,7 +41,7 @@ impl Log for Logger {
             .unwrap_or_else(|| Vec::with_capacity(self.buffer_size));
 
         // Write the log message into the buffer and send to the receiver
-        if (self.format)(&mut buffer, DateTime::recent(), record).is_ok() {
+        if (self.format)(&mut buffer, UnixInstant::now(), record).is_ok() {
             let bytes = buffer.len();
 
             // Note this may drop a log message, but avoids blocking. The

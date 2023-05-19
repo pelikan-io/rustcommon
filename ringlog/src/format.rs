@@ -2,25 +2,26 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use clocksource::precise::UnixInstant;
 use crate::*;
 
-use clocksource::{DateTime, SecondsFormat};
+use clocksource::datetime::DateTime;
 
 pub type FormatFunction = fn(
     write: &mut dyn std::io::Write,
-    now: DateTime,
+    now: UnixInstant,
     record: &Record,
 ) -> Result<(), std::io::Error>;
 
 pub fn default_format(
     w: &mut dyn std::io::Write,
-    now: DateTime,
+    now: UnixInstant,
     record: &Record,
 ) -> Result<(), std::io::Error> {
     writeln!(
         w,
         "{} {} [{}] {}",
-        now.to_rfc3339_opts(SecondsFormat::Millis, false),
+        DateTime::from(now),
         record.level(),
         record.module_path().unwrap_or("<unnamed>"),
         record.args()
@@ -29,13 +30,13 @@ pub fn default_format(
 
 pub fn klog_format(
     w: &mut dyn std::io::Write,
-    now: DateTime,
+    now: UnixInstant,
     record: &Record,
 ) -> Result<(), std::io::Error> {
     writeln!(
         w,
         "{} {}",
-        now.to_rfc3339_opts(SecondsFormat::Millis, false),
+        DateTime::from(now),
         record.args()
     )
 }
