@@ -1,7 +1,10 @@
-/// A simple histogram that can be used to track the distribution of occurances
-/// of u64 values. Internally it uses 32bit atomic counters.
-pub struct Histogram {
-    pub(crate) buckets: Box<[u32]>,
+use crate::Bucket;
+use core::sync::atomic::{AtomicU32, Ordering};
+
+// A simple concurrent histogram that can be used to track the distribution of
+// occurances of u64 values. Internally it uses 32bit atomic counters.
+pub struct AtomicHistogram {
+    pub(crate) buckets: Box<[AtomicU32]>,
     pub(crate) max: u64,
     pub(crate) a: u32,
     pub(crate) b: u32,
@@ -11,14 +14,7 @@ pub struct Histogram {
     pub(crate) upper_bin_divisions: usize,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct Bucket {
-    pub(crate) count: u32,
-    pub(crate) lower: u64,
-    pub(crate) upper: u64,
-}
-
-impl Histogram {
+impl AtomicHistogram {
     /// # Panics
     /// This function will panic if:
     /// * `n` is greater than 64
@@ -49,7 +45,8 @@ impl Histogram {
         let upper_bin_count = (n - (a + b + 1)) as usize * upper_bin_divisions;
         let total_bins = lower_bin_count + upper_bin_count;
 
-        let mut buckets = vec![0; total_bins];
+        let mut buckets = Vec::with_capacity(total_bins);
+        buckets.resize_with(total_bins, || { AtomicU32::new(0) });
 
         Self {
             buckets: buckets.into(),
@@ -64,13 +61,8 @@ impl Histogram {
     }
 
     /// Provides raw access to the bucket counters.
-    pub fn as_slice(&self) -> &[u32] {
+    pub fn as_slice(&self) -> &[AtomicU32] {
         &self.buckets
-    }
-
-    /// Provides raw access to the bucket counters.
-    pub fn as_mut_slice(&mut self) -> &mut [u32] {
-        &mut self.buckets
     }
 
     /// # Panics
@@ -124,7 +116,7 @@ impl Histogram {
 
     fn get_bucket(&self, index: usize) -> Bucket {
         Bucket {
-            count: self.buckets[index],
+            count: self.buckets[index].load(Ordering::Relaxed),
             lower: self.index_to_lower_bound(index),
             upper: self.index_to_upper_bound(index),
         }
@@ -139,9 +131,9 @@ impl Histogram {
     /// histogram, you may get incorrect results.
     ///
     /// However, when used in combination with the Snapshots
-    pub fn increment(&mut self, value: u64) {
+    pub fn increment(&self, value: u64) {
         let index = self.value_to_index(value);
-        self.buckets[index] += 1;
+        self.buckets[index].fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn percentile(&self, percentile: f64) -> Option<Bucket> {
@@ -150,7 +142,7 @@ impl Histogram {
 
     pub fn percentiles(&self, percentiles: &[f64]) -> Option<Vec<(f64, Bucket)>> {
         // get the total count across all buckets as a u64
-        let total: u64 = self.buckets.iter().map(|v| *v as u64).sum();
+        let total: u64 = self.buckets.iter().map(|v| v.load(Ordering::Relaxed) as u64).sum();
 
         // if the histogram is empty, then we should return an error
         if total == 0 {
@@ -196,7 +188,7 @@ impl Histogram {
                 }
 
                 // get the current count for the current bucket
-                let current_count = self.buckets[current_idx];
+                let current_count = self.buckets[current_idx].load(Ordering::Relaxed);
 
                 // track the highest index with a non-zero count
                 if current_count > 0 {
@@ -239,29 +231,29 @@ mod tests {
     #[test]
     // Test that the number of buckets matches the expected count
     fn bucket_counts() {
-        let histogram = Histogram::new(0, 2, 64);
+        let histogram = AtomicHistogram::new(0, 2, 64);
         assert_eq!(histogram.buckets.len(), 252);
 
-        let histogram = Histogram::new(0, 7, 64);
+        let histogram = AtomicHistogram::new(0, 7, 64);
         assert_eq!(histogram.buckets.len(), 7424);
 
-        let histogram = Histogram::new(0, 14, 64);
+        let histogram = AtomicHistogram::new(0, 14, 64);
         assert_eq!(histogram.buckets.len(), 835_584);
 
-        let histogram = Histogram::new(1, 2, 64);
+        let histogram = AtomicHistogram::new(1, 2, 64);
         assert_eq!(histogram.buckets.len(), 248);
 
-        let histogram = Histogram::new(8, 2, 64);
+        let histogram = AtomicHistogram::new(8, 2, 64);
         assert_eq!(histogram.buckets.len(), 220);
 
-        let histogram = Histogram::new(0, 2, 4);
+        let histogram = AtomicHistogram::new(0, 2, 4);
         assert_eq!(histogram.buckets.len(), 12);
     }
 
     #[test]
     // Test value to index conversions
     fn value_to_idx() {
-        let histogram = Histogram::new(0, 7, 64);
+        let histogram = AtomicHistogram::new(0, 7, 64);
         assert_eq!(histogram.value_to_index(0), 0);
         assert_eq!(histogram.value_to_index(1), 1);
         assert_eq!(histogram.value_to_index(256), 256);
@@ -280,7 +272,7 @@ mod tests {
     #[test]
     // Test index to lower bound conversion
     fn idx_to_lower_bound() {
-        let histogram = Histogram::new(0, 7, 64);
+        let histogram = AtomicHistogram::new(0, 7, 64);
         assert_eq!(histogram.index_to_lower_bound(0), 0);
         assert_eq!(histogram.index_to_lower_bound(1), 1);
         assert_eq!(histogram.index_to_lower_bound(256), 256);
@@ -292,7 +284,7 @@ mod tests {
     #[test]
     // Test index to upper bound conversion
     fn idx_to_upper_bound() {
-        let histogram = Histogram::new(0, 7, 64);
+        let histogram = AtomicHistogram::new(0, 7, 64);
         assert_eq!(histogram.index_to_upper_bound(0), 0);
         assert_eq!(histogram.index_to_upper_bound(1), 1);
         assert_eq!(histogram.index_to_upper_bound(256), 257);
@@ -304,7 +296,7 @@ mod tests {
     #[test]
     // Tests percentiles
     fn percentiles() {
-        let mut histogram = Histogram::new(0, 7, 64);
+        let histogram = AtomicHistogram::new(0, 7, 64);
         for i in 0..=100 {
             println!("increment: {i}");
             histogram.increment(i);

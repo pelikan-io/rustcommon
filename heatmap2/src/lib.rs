@@ -1,12 +1,12 @@
+mod atomic_histogram;
 mod histogram;
 
-use clocksource::datetime::DateTime;
 pub use histogram::{Bucket, Histogram};
+pub use atomic_histogram::AtomicHistogram;
 
 use parking_lot::Mutex;
-// use time::OffsetDateTime;
 use core::sync::atomic::{Ordering};
-
+use clocksource::datetime::DateTime;
 use clocksource::precise::{AtomicInstant, Duration, Instant, UnixInstant};
 
 struct Snapshots {
@@ -35,15 +35,15 @@ impl Snapshots {
         }
     }
 
-    pub fn push(&mut self, histogram: &Histogram) {
+    pub fn push(&mut self, histogram: &AtomicHistogram) {
         assert_eq!(histogram.buckets.len(), self.histograms[0].1.buckets.len());
 
         let write_idx = self.write_ptr & self.mask;
 
         self.histograms[write_idx].0 = DateTime::from(UnixInstant::now());
 
-        for (idx, count) in histogram.buckets.iter().map(|c| c.load(Ordering::Relaxed)).enumerate() {
-            self.histograms[write_idx].1.buckets[idx].store(count, Ordering::Relaxed);
+        for (idx, count) in histogram.buckets.iter().enumerate() {
+            self.histograms[write_idx].1.buckets[idx] = count.load(Ordering::Relaxed);
         }
 
         self.write_ptr += 1;
@@ -72,11 +72,11 @@ impl Snapshots {
             newest + self.histograms.len() - lookback
         };
 
-        for (idx, v) in self.histograms[newest].1.buckets.iter().map(|v| v.load(Ordering::Relaxed)).enumerate() {
-            self.scratch.buckets[idx].store(v, Ordering::Relaxed);
+        for (idx, v) in self.histograms[newest].1.buckets.iter().enumerate() {
+            self.scratch.buckets[idx] = *v;
         }
-        for (idx, v) in self.histograms[oldest].1.buckets.iter().map(|v| v.load(Ordering::Relaxed)).enumerate() {
-            self.scratch.buckets[idx].fetch_sub(v, Ordering::Relaxed);
+        for (idx, v) in self.histograms[oldest].1.buckets.iter().enumerate() {
+            self.scratch.buckets[idx] = self.scratch.buckets[idx].wrapping_sub(*v);
         }
 
         self.scratch.percentiles(percentiles)
@@ -84,7 +84,7 @@ impl Snapshots {
 }
 
 pub struct MovingWindowHistogram {
-    live: Histogram,
+    live: AtomicHistogram,
     tick_start: AtomicInstant,
     tick_stop: AtomicInstant,
     resolution: Duration,
@@ -104,7 +104,7 @@ impl MovingWindowHistogram {
         let resolution = Duration::from_nanos(resolution as u64);
 
         Self {
-            live: Histogram::new(a, b, n),
+            live: AtomicHistogram::new(a, b, n),
             tick_start: now.into(),
             tick_stop: (now + resolution).into(),
             resolution,
