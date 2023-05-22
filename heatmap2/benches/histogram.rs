@@ -5,6 +5,16 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use heatmap2::{AtomicHistogram, Histogram};
 use criterion::{criterion_group, criterion_main, Criterion};
 
+#[cfg(target_os = "linux")]
+mod perf;
+#[cfg(target_os = "linux")]
+use perf::FlamegraphProfiler;
+
+#[cfg(target_os = "linux")]
+fn custom() -> Criterion {
+    Criterion::default().with_profiler(FlamegraphProfiler::new(100))
+}
+
 fn histogram(c: &mut Criterion) {
     let mut histogram = Histogram::new(0, 7, 64);
 
@@ -54,5 +64,14 @@ fn moving_window_histogram(c: &mut Criterion) {
 
 }
 
+#[cfg(not(target_os = "linux"))]
 criterion_group!(benches, histogram, atomic_histogram, moving_window_histogram);
+
+#[cfg(target_os = "linux")]
+criterion_group! {
+    name = benches;
+    config = custom();
+    targets = histogram, atomic_histogram, moving_window_histogram
+}
+
 criterion_main!(benches);
