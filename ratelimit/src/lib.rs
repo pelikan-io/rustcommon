@@ -113,14 +113,10 @@ impl Ratelimiter {
         let available = self.available.load(Ordering::Acquire);
         let capacity = self.capacity.load(Ordering::Relaxed);
 
-        println!("capacity: {capacity}");
-
         if available + amount >= capacity {
-            println!("saturating");
             self.available
                 .fetch_add(capacity - available, Ordering::Release);
         } else {
-            println!("adding");
             self.available.fetch_add(amount, Ordering::Release);
         }
 
