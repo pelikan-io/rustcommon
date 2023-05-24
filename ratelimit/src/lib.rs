@@ -152,7 +152,7 @@ pub struct Builder {
 }
 
 impl Builder {
-    fn new(amount: u64, interval: Duration) -> Self {
+    pub fn new(amount: u64, interval: Duration) -> Self {
         Self {
             available: 1,
             capacity: 0,
@@ -194,7 +194,10 @@ impl Builder {
 
         let refill_amount = AtomicU64::new(self.refill_amount);
         let refill_at = AtomicInstant::new(
-            Instant::now() + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(self.refill_interval.as_nanos() as u64),
+            Instant::now()
+                + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(
+                    self.refill_interval.as_nanos() as u64,
+                ),
         );
         let refill_interval = AtomicDuration::from_nanos(self.refill_interval.as_nanos() as u64);
 
@@ -226,8 +229,7 @@ mod tests {
     #[test]
     pub fn rate() {
         // amount + interval
-        let rl = Ratelimiter::builder(4, Duration::from_nanos(333))
-            .build();
+        let rl = Ratelimiter::builder(4, Duration::from_nanos(333)).build();
 
         approx_eq!(rl.rate(), 12012012.0);
     }
@@ -235,8 +237,7 @@ mod tests {
     // quick test that a ratelimiter yields tokens at the desired rate
     #[test]
     pub fn wait() {
-        let rl = Ratelimiter::builder(1, Duration::from_micros(10))
-            .build();
+        let rl = Ratelimiter::builder(1, Duration::from_micros(10)).build();
 
         let mut count = 0;
 
