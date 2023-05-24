@@ -46,12 +46,20 @@ impl Ratelimiter {
             / self.refill_interval.load(Ordering::Relaxed).as_nanos() as f64
     }
 
-    /// Return the current interval between refills
+    /// Return the current interval between refills.
     pub fn refill_interval(&self) -> Duration {
         Duration::from_nanos(self.refill_interval.load(Ordering::Relaxed).as_nanos())
     }
 
-    /// Return the current number of tokens to be added on each refill
+    /// Allows for changing the interval between refills at runtime.
+    pub fn set_refill_interval(&self, duration: Duration) {
+        self.refill_interval.store(
+            clocksource::Duration::<Nanoseconds<u64>>::from_nanos(duration.as_nanos() as u64),
+            Ordering::Relaxed,
+        )
+    }
+
+    /// Return the current number of tokens to be added on each refill.
     pub fn refill_amount(&self) -> u64 {
         self.refill_amount.load(Ordering::Relaxed)
     }
