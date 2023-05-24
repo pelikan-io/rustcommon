@@ -131,7 +131,7 @@ impl Ratelimiter {
                 refill_result?
             }
 
-            let new = available.saturating_sub(1);
+            let new = available - 1;
 
             if self
                 .available
