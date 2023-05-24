@@ -5,8 +5,7 @@
 //! use ratelimit::Ratelimiter;
 //! use std::time::Duration;
 //!
-//! let ratelimiter = Ratelimiter::builder()
-//!     .refill_rate(100, Duration::from_secs(1))
+//! let ratelimiter = Ratelimiter::builder(1, Duration::from_millis(10))
 //!     .build();
 //!
 //! loop {
@@ -37,8 +36,8 @@ pub struct Ratelimiter {
 }
 
 impl Ratelimiter {
-    pub fn builder() -> Builder {
-        Builder::new()
+    pub fn builder(amount: u64, interval: Duration) -> Builder {
+        Builder::new(amount, interval)
     }
 
     /// Return the current effective rate of the Ratelimiter in tokens/second
@@ -139,7 +138,6 @@ impl Ratelimiter {
                 .compare_exchange(available, new, Ordering::AcqRel, Ordering::Acquire)
                 .is_ok()
             {
-                // println!("anywhere");
                 return Ok(());
             }
         }
@@ -149,19 +147,17 @@ impl Ratelimiter {
 pub struct Builder {
     available: u64,
     capacity: u64,
-    refill_amount: Option<u64>,
-    refill_interval: Option<Duration>,
-    refill_rate: (u64, Duration),
+    refill_amount: u64,
+    refill_interval: Duration,
 }
 
 impl Builder {
-    fn new() -> Self {
+    fn new(amount: u64, interval: Duration) -> Self {
         Self {
             available: 1,
             capacity: 0,
-            refill_amount: None,
-            refill_interval: None,
-            refill_rate: (1, Duration::from_secs(1)),
+            refill_amount: amount,
+            refill_interval: interval,
         }
     }
 
@@ -172,8 +168,6 @@ impl Builder {
     /// Capacity will be increased automatically under any of these conditions:
     /// * `capacity` was set to zero
     /// * `refill_amount` was set higher than the capacity
-    /// * `refill_rate` is high enough to require adding more tokens per refill
-    ///    event than the capacity would otherwise allow
     pub fn capacity(mut self, capacity: u64) -> Self {
         self.capacity = std::cmp::max(1, capacity);
         self
@@ -193,104 +187,16 @@ impl Builder {
         self
     }
 
-    /// Specify the rate at which tokens refill the bucket. Unless the refill
-    /// burst has been set, the default behavior is to spread these tokens
-    /// evenly across time when possible.
-    ///
-    /// You can use this in combination with either `refill_amount` or
-    /// `refill_interval` to modify this behavior.
-    ///
-    /// The actual rate may be slightly lower under some conditions.
-    pub fn refill_rate(mut self, tokens: u64, interval: Duration) -> Self {
-        self.refill_rate = (
-            std::cmp::max(1, tokens),
-            std::cmp::max(interval, Duration::from_nanos(1)),
-        );
-        self
-    }
-
-    /// Specify the exact number of tokens to add on each refill. If the refill
-    /// interval is not specified, it will be calculated from the refill rate
-    /// and the amount of tokens specified here. Otherwise, the provided number
-    /// of tokens will be added at each refill interval.
-    pub fn refill_amount(mut self, tokens: u64) -> Self {
-        self.refill_amount = Some(std::cmp::max(1, tokens));
-        self
-    }
-
-    /// Specify the exact refill interval. If the refill amount is not
-    /// specified, it will be calculated from the refill rate and this interval.
-    /// Otherwise, at each refill interval, the refill amount of tokens are
-    /// added.
-    pub fn refill_interval(mut self, interval: Duration) -> Self {
-        self.refill_interval = Some(std::cmp::max(interval, Duration::from_nanos(1)));
-        self
-    }
-
     /// Consumes this `Builder` and produces a `Ratelimiter`.
     pub fn build(self) -> Ratelimiter {
-        let (amount, interval) = match (self.refill_amount, self.refill_interval) {
-            (Some(amount), Some(interval)) => {
-                // if we have an explicit amount and interval, use those
-                // directly
-                (amount, interval.as_nanos() as u64)
-            }
-            (Some(amount), None) => {
-                let a = self.refill_rate.0;
-                let i = self.refill_rate.1.as_nanos() as u64;
-
-                // tokens per nanosecond
-                let target_rate = a as f64 / i as f64;
-
-                let interval = (amount as f64 / target_rate).round() as u64;
-
-                (amount, interval)
-            }
-            (None, Some(interval)) => {
-                let a = self.refill_rate.0;
-                let i = self.refill_rate.1.as_nanos() as u64;
-
-                // tokens per nanosecond
-                let target_rate = a as f64 / i as f64;
-
-                let amount = (interval.as_nanos() as u64 as f64 * target_rate).round() as u64;
-                let interval = interval.as_nanos() as u64;
-
-                (amount, interval)
-            }
-            (None, None) => {
-                // work out an amount and interval based on the rate
-
-                let mut amount = self.refill_rate.0;
-                let mut interval = self.refill_rate.1.as_nanos() as u64;
-
-                // copy the original values for use later
-                let a = amount;
-                let i = interval;
-
-                // reduce things to the smallest amount and interval possible
-                let gcd = gcd(amount, interval);
-                amount /= gcd;
-                interval /= gcd;
-
-                // scale things up to reduce bookeeping
-                while interval < 100 {
-                    amount += a;
-                    interval += i;
-                }
-
-                (amount, interval)
-            }
-        };
-
         let available = AtomicU64::new(self.available);
-        let capacity = AtomicU64::new(std::cmp::max(self.capacity, amount));
+        let capacity = AtomicU64::new(std::cmp::max(self.capacity, self.refill_amount));
 
-        let refill_amount = AtomicU64::new(amount);
+        let refill_amount = AtomicU64::new(self.refill_amount);
         let refill_at = AtomicInstant::new(
-            Instant::now() + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(interval),
+            Instant::now() + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(self.refill_interval.as_nanos() as u64),
         );
-        let refill_interval = AtomicDuration::from_nanos(interval);
+        let refill_interval = AtomicDuration::from_nanos(self.refill_interval.as_nanos() as u64);
 
         Ratelimiter {
             available,
@@ -299,54 +205,6 @@ impl Builder {
             refill_at,
             refill_interval,
         }
-    }
-}
-
-// Taken from Wikipedia: https://en.wikipedia.org/wiki/Binary_GCD_algorithm
-fn gcd(mut u: u64, mut v: u64) -> u64 {
-    use std::cmp::min;
-    use std::mem::swap;
-
-    // Base cases: gcd(n, 0) = gcd(0, n) = n
-    if u == 0 {
-        return v;
-    } else if v == 0 {
-        return u;
-    }
-
-    // Using identities 2 and 3:
-    // gcd(2ⁱ u, 2ʲ v) = 2ᵏ gcd(u, v) with u, v odd and k = min(i, j)
-    // 2ᵏ is the greatest power of two that divides both u and v
-    let i = u.trailing_zeros();
-    u >>= i;
-    let j = v.trailing_zeros();
-    v >>= j;
-    let k = min(i, j);
-
-    loop {
-        // u and v are odd at the start of the loop
-        debug_assert!(u % 2 == 1, "u = {} is even", u);
-        debug_assert!(v % 2 == 1, "v = {} is even", v);
-
-        // Swap if necessary so u <= v
-        if u > v {
-            swap(&mut u, &mut v);
-        }
-        // u and v are still both odd after (potentially) swapping
-
-        // Using identity 4 (gcd(u, v) = gcd(|v-u|, min(u, v))
-        v -= u;
-        // v is now even, but u is unchanged (and odd)
-
-        // Identity 1: gcd(u, 0) = u
-        // The shift by k is necessary to add back the 2ᵏ factor that was removed before the loop
-        if v == 0 {
-            return u << k;
-        }
-
-        // Identity 3: gcd(u, 2ʲ v) = gcd(u, v) (u is known to be odd)
-        v >>= v.trailing_zeros();
-        // v is now odd again
     }
 }
 
@@ -367,55 +225,17 @@ mod tests {
     // test that the configured rate and calculated effective rate are close
     #[test]
     pub fn rate() {
-        // rate
-        let rl = Ratelimiter::builder()
-            .refill_rate(100000, Duration::from_secs(1))
-            .build();
-
-        approx_eq!(rl.rate(), 100000.0);
-
-        let rl = Ratelimiter::builder()
-            .refill_rate(3, Duration::from_secs(1))
-            .build();
-
-        approx_eq!(rl.rate(), 3.0);
-
-        let rl = Ratelimiter::builder()
-            .refill_rate(333333333, Duration::from_secs(1))
-            .build();
-
-        approx_eq!(rl.rate(), 333333333.0);
-
         // amount + interval
-        let rl = Ratelimiter::builder()
-            .refill_amount(4)
-            .refill_interval(Duration::from_nanos(333))
+        let rl = Ratelimiter::builder(4, Duration::from_nanos(333))
             .build();
 
         approx_eq!(rl.rate(), 12012012.0);
-
-        // interval + rate
-        let rl = Ratelimiter::builder()
-            .refill_rate(333333333, Duration::from_secs(1))
-            .refill_interval(Duration::from_nanos(333))
-            .build();
-
-        approx_eq!(rl.rate(), 333333333.0);
-
-        // amount + rate
-        let rl = Ratelimiter::builder()
-            .refill_rate(333333333, Duration::from_secs(1))
-            .refill_amount(4)
-            .build();
-
-        approx_eq!(rl.rate(), 333333333.0);
     }
 
     // quick test that a ratelimiter yields tokens at the desired rate
     #[test]
     pub fn wait() {
-        let rl = Ratelimiter::builder()
-            .refill_rate(100000, Duration::from_secs(1))
+        let rl = Ratelimiter::builder(1, Duration::from_micros(10))
             .build();
 
         let mut count = 0;
@@ -435,8 +255,7 @@ mod tests {
     // quick test that an idle ratelimiter doesn't build up excess capacity
     #[test]
     pub fn idle() {
-        let rl = Ratelimiter::builder()
-            .refill_rate(1000, Duration::from_secs(1))
+        let rl = Ratelimiter::builder(1, Duration::from_millis(1))
             .available(1)
             .build();
 
@@ -448,8 +267,7 @@ mod tests {
     // quick test that capacity acts as expected
     #[test]
     pub fn capacity() {
-        let rl = Ratelimiter::builder()
-            .refill_rate(100, Duration::from_secs(1))
+        let rl = Ratelimiter::builder(1, Duration::from_millis(10))
             .capacity(10)
             .available(0)
             .build();
