@@ -67,10 +67,12 @@ impl Ratelimiter {
     /// Internal function to refill the token bucket. Called as part of
     /// `try_wait()`
     fn refill(&self, time: Instant) -> Result<(), core::time::Duration> {
-        let mut interval = self.refill_interval.load(Ordering::Relaxed);
-        let mut refill_amount = self.refill_amount.load(Ordering::Relaxed);
-
+        // will hold the duration between refill intervals
+        let mut interval;
+        // will hold the number of elapsed refill intervals
         let mut intervals;
+        // will hold the number of tokens to add per interval
+        let mut refill_amount;
 
         loop {
             // determine when next refill should occur
@@ -82,6 +84,10 @@ impl Ratelimiter {
                     (refill_at - time).as_nanos(),
                 ));
             }
+
+            // load the refill parameters
+            interval = self.refill_interval.load(Ordering::Relaxed);
+            refill_amount = self.refill_amount.load(Ordering::Relaxed);
 
             intervals = (time - refill_at).as_nanos() / interval.as_nanos() + 1;
 
@@ -100,11 +106,6 @@ impl Ratelimiter {
             {
                 break;
             }
-
-            // if we lost the compare/exchange, these may have changed in the
-            // meantime (by updating the rate in another thread)
-            interval = self.refill_interval.load(Ordering::Relaxed);
-            refill_amount = self.refill_amount.load(Ordering::Relaxed);
         }
 
         // figure out how many tokens we might add
