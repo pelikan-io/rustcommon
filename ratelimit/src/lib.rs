@@ -149,8 +149,8 @@ impl Ratelimiter {
 }
 
 pub struct Builder {
-    available: u64,
-    capacity: u64,
+    initial_available: u64,
+    max_tokens: u64,
     refill_amount: u64,
     refill_interval: Duration,
 }
@@ -158,22 +158,30 @@ pub struct Builder {
 impl Builder {
     pub fn new(amount: u64, interval: Duration) -> Self {
         Self {
-            available: 1,
-            capacity: 0,
+            // default of zero tokens initially
+            initial_available: 0,
+            // default of one to prohibit bursts
+            max_tokens: 1,
             refill_amount: amount,
             refill_interval: interval,
         }
     }
 
-    /// Set the capacity of the `Ratelimiter`. This limits the size of any
-    /// bursts by limiting the number of tokens the ratelimiter can have
-    /// available at any time.
+    /// Set the max tokens that can be held in the the `Ratelimiter` at any
+    /// time. This limits the size of any bursts by placing an upper bound on
+    /// the number of tokens available for immediate use.
     ///
-    /// Capacity will be increased automatically under any of these conditions:
-    /// * `capacity` was set to zero
-    /// * `refill_amount` was set higher than the capacity
-    pub fn capacity(mut self, capacity: u64) -> Self {
-        self.capacity = std::cmp::max(1, capacity);
+    /// This value will be increased automatically under any of these
+    /// conditions:
+    /// * `max_tokens` was set to zero, in which case we will increase it to at
+    ///   least one
+    /// * `refill_amount` was set higher than the `max_token`, in which case the
+    ///   refill amount will be used instead.
+    ///
+    /// By default, the max_tokens will be set to `1` unless the `refill_amount`
+    /// requires a higher value.
+    pub fn max_tokens(mut self, tokens: u64) -> Self {
+        self.max_tokens = std::cmp::max(1, tokens);
         self
     }
 
@@ -181,20 +189,20 @@ impl Builder {
     /// control scenarios, you may wish for there to be some tokens initially
     /// available to avoid delays or discards until the ratelimit is hit. When
     /// using it to enforce a ratelimit on your own process, for example when
-    /// generating outbound requests, you may want there to be no tokens
+    /// generating outbound requests, you may want there to be zero tokens
     /// availble initially to make your application more well-behaved in event
     /// of process restarts.
     ///
     /// The default is that no tokens are initially available.
-    pub fn available(mut self, tokens: u64) -> Self {
-        self.available = tokens;
+    pub fn initial_available(mut self, tokens: u64) -> Self {
+        self.initial_available = tokens;
         self
     }
 
     /// Consumes this `Builder` and produces a `Ratelimiter`.
     pub fn build(self) -> Ratelimiter {
-        let available = AtomicU64::new(self.available);
-        let capacity = AtomicU64::new(std::cmp::max(self.capacity, self.refill_amount));
+        let available = AtomicU64::new(self.initial_available);
+        let capacity = AtomicU64::new(std::cmp::max(self.max_tokens, self.refill_amount));
 
         let refill_amount = AtomicU64::new(self.refill_amount);
         let refill_at = AtomicInstant::new(
@@ -261,7 +269,7 @@ mod tests {
     #[test]
     pub fn idle() {
         let rl = Ratelimiter::builder(1, Duration::from_millis(1))
-            .available(1)
+            .initial_available(1)
             .build();
 
         std::thread::sleep(Duration::from_millis(10));
@@ -273,8 +281,8 @@ mod tests {
     #[test]
     pub fn capacity() {
         let rl = Ratelimiter::builder(1, Duration::from_millis(10))
-            .capacity(10)
-            .available(0)
+            .max_tokens(10)
+            .initial_available(0)
             .build();
 
         std::thread::sleep(Duration::from_millis(100));
