@@ -140,6 +140,14 @@ impl Histogram {
         Builder { m: 0, r: 10, n: 30 }
     }
 
+    /// Gets the values that have been used for the creation of the histogram.
+    ///
+    /// These values represent (m, r, n), i.e., the minimum resolution, the
+    /// minimum resolution range, and the maximum value supported.
+    pub fn parameters(&self) -> (u32, u32, u32) {
+        (self.m, self.r, self.n)
+    }
+
     /// Resets the `Histogram` by zeroing out the count for every bucket.
     pub fn clear(&self) {
         for bucket in self.buckets.iter() {
@@ -482,22 +490,5 @@ impl<'a> Iterator for HistogramIter<'a> {
         } else {
             None
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_min_resolution() {
-        let h = Histogram::builder().min_resolution(10).build().unwrap();
-        assert_eq!(h.m, 3);
-
-        let h = Histogram::builder().min_resolution(8).build().unwrap();
-        assert_eq!(h.m, 3);
-
-        let h = Histogram::builder().min_resolution(0).build().unwrap();
-        assert_eq!(h.m, 0);
     }
 }

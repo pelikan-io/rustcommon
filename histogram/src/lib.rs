@@ -17,6 +17,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_builder() {
+        let h = Histogram::builder().build().unwrap();
+        let p = h.parameters();
+
+        assert_eq!(p.0, 0);
+        assert_eq!(p.1, 10);
+        assert_eq!(p.2, 30);
+    }
+
+    #[test]
+    fn test_min_resolution() {
+        let h = Histogram::builder().min_resolution(10).build().unwrap();
+        assert_eq!(h.parameters().0, 3);
+
+        let h = Histogram::builder().min_resolution(8).build().unwrap();
+        assert_eq!(h.parameters().0, 3);
+
+        let h = Histogram::builder().min_resolution(0).build().unwrap();
+        assert_eq!(h.parameters().0, 0);
+    }
+
+    #[test]
     // run some test cases for various histogram sizes
     fn num_buckets() {
         let histogram = Histogram::new(0, 2, 10).unwrap();
