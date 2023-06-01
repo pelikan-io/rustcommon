@@ -1,6 +1,6 @@
 [package]
 name = "heatmap"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["Brian Martin <brian@pelikan.io>"]
 edition = "2021"
 license = "Apache-2.0"
@@ -10,7 +10,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 clocksource = { version = "0.6.0", path = "../clocksource" }
-histogram = { version = "0.7.2", path = "../histogram" }
+histogram = { version = "0.7.3", path = "../histogram" }
 parking_lot = "0.12.1"
 thiserror = "1.0.34"
 
