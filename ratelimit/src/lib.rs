@@ -121,6 +121,16 @@ impl Ratelimiter {
             Err(Error::MaxTokensTooLow)
         } else {
             parameters.capacity = amount;
+            loop {
+                let available = self.available();
+                if amount > available {
+                    if self.available.compare_exchange(available, amount, Ordering::AcqRel, Ordering::Acquire).is_ok() {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
             Ok(())
         }
     }
