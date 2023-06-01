@@ -10,4 +10,5 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 clocksource = { version = "0.6.0", path = "../clocksource" }
+parking_lot = "*"
 thiserror = "1.0.40"
