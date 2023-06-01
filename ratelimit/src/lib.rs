@@ -1,14 +1,48 @@
 //! This crate provides a simple implementation of a ratelimiter that can be
 //! shared between threads.
 //!
-//! ```no_run
+//! ```
 //! use ratelimit::Ratelimiter;
 //! use std::time::Duration;
 //!
-//! let ratelimiter = Ratelimiter::builder(1, Duration::from_millis(10))
-//!     .build();
+//! // Constructs a ratelimiter that generates 1 tokens/s with no burst. This
+//! // can be used to produce a steady rate of requests. The ratelimiter starts
+//! // with no tokens available, which means across application restarts, we
+//! // cannot exceed the configured ratelimit.
+//! let ratelimiter = Ratelimiter::builder(1, Duration::from_secs(1))
+//!     .build()
+//!     .unwrap();
 //!
-//! loop {
+//! // Another use case might be admission control, where we start with some
+//! // initial budget and replenish it periodically. In this example, our
+//! // ratelimiter allows 1000 tokens/hour. For every hour long sliding window,
+//! // no more than 1000 tokens can be acquired. But all tokens can be used in
+//! // a single burst. Additional calls to `try_wait()` will return an error
+//! // until the next token addition.
+//! //
+//! // This is popular approach with public API ratelimits.
+//! let ratelimiter = Ratelimiter::builder(1000, Duration::from_secs(3600))
+//!     .max_tokens(1000)
+//!     .initial_available(1000)
+//!     .build()
+//!     .unwrap();
+//!
+//! // For very high rates, we should avoid using too short of an interval due
+//! // to limits of system clock resolution. Instead, it's better to allow some
+//! // burst and add multiple tokens per interval. The resulting ratelimiter
+//! // here generates 50 million tokens/s and allows no more than 50 tokens to
+//! // be acquired in any 1 microsecond long window.
+//! let ratelimiter = Ratelimiter::builder(50, Duration::from_micros(1))
+//!     .max_tokens(50)
+//!     .build()
+//!     .unwrap();
+//!
+//! // constructs a ratelimiter that generates 100 tokens/s with no burst
+//! let ratelimiter = Ratelimiter::builder(1, Duration::from_millis(10))
+//!     .build()
+//!     .unwrap();
+//!
+//! for _ in 0..10 {
 //!     // a simple sleep-wait
 //!     if let Err(sleep) = ratelimiter.try_wait() {
 //!            std::thread::sleep(sleep);
@@ -54,6 +88,14 @@ pub struct Ratelimiter {
 }
 
 impl Ratelimiter {
+    /// Initialize a builder that will construct a `Ratelimiter` that adds the
+    /// specified `amount` of tokens to the token bucket after each `interval`
+    /// has elapsed.
+    ///
+    /// Note: In practice, the system clock resolution imposes a lower bound on
+    /// the `interval`. To be safe, it is recommended to set the interval to be
+    /// no less than 1 microsecond. This also means that the number of tokens
+    /// per interval should be > 1 to achieve rates beyond 1 million tokens/s.
     pub fn builder(amount: u64, interval: core::time::Duration) -> Builder {
         Builder::new(amount, interval)
     }
@@ -124,7 +166,11 @@ impl Ratelimiter {
             loop {
                 let available = self.available();
                 if amount > available {
-                    if self.available.compare_exchange(available, amount, Ordering::AcqRel, Ordering::Acquire).is_ok() {
+                    if self
+                        .available
+                        .compare_exchange(available, amount, Ordering::AcqRel, Ordering::Acquire)
+                        .is_ok()
+                    {
                         break;
                     }
                 } else {
@@ -238,7 +284,9 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn new(amount: u64, interval: core::time::Duration) -> Self {
+    /// Initialize a new builder that will add `amount` tokens after each
+    /// `interval` has elapsed.
+    fn new(amount: u64, interval: core::time::Duration) -> Self {
         Self {
             // default of zero tokens initially
             initial_available: 0,
@@ -276,7 +324,7 @@ impl Builder {
         self
     }
 
-    /// Consumes this `Builder` and produces a `Ratelimiter`.
+    /// Consumes this `Builder` and attempts to construct a `Ratelimiter`.
     pub fn build(self) -> Result<Ratelimiter, Error> {
         if self.max_tokens < self.refill_amount {
             return Err(Error::MaxTokensTooLow);
@@ -328,6 +376,7 @@ mod tests {
     pub fn rate() {
         // amount + interval
         let rl = Ratelimiter::builder(4, Duration::from_nanos(333))
+            .max_tokens(4)
             .build()
             .unwrap();
 
