@@ -1,29 +1,34 @@
 # ratelimit
 
-Token bucket ratelimiting with various refill strategies
+A simple ratelimiter that can be shared between threads.
 
 ## Overview
 
-This crate provides token bucket ratelimiting implementations. The typical
-use-case would be to control the rate of requests or other actions.
+This crate provides a ratelimiter that is based around a token bucket. It can
+be used in cases where you need to control the rate of some actions or where you
+may need to use admission control.
 
-This particular implementation allows for setting a refill strategy for the
-token bucket. This allows for creating noise in the interval between additions
-of tokens into the bucket. By doing this, we can create workloads that are
-bursty and can more closely mirror production workload characteristics.
+## Usage
 
-## Getting Started
+The API documentation of this library can be found at
+[docs.rs/ratelimit](https://docs.rs/ratelimit/).
 
-### Building
+## Features
 
-rustcommon is built with the standard Rust toolchain which can be installed and
-managed via [rustup](https://rustup.rs) or by following the directions on the
-Rust [website](https://www.rust-lang.org/).
+* Simple token bucket ratelimiter for ratelimiting and admission control
+* Thread-safe so it can be used as a global ratelimiter for multi-threaded
+  programs
+* Allows runtime reconfiguration that can be used to alter the effective
+  ratelimit or other aspects of its behavior
 
-#### View library documentation
-```bash
-cargo doc --open
-```
+## License
+
+Licensed under either of
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
 
 ## Support
 
