@@ -1,426 +1,266 @@
-// Copyright 2021 Twitter, Inc.
-// Licensed under the Apache License, Version 2.0
-// http://www.apache.org/licenses/LICENSE-2.0
-
-//! Easily registered distributed metrics.
-//!
-//! More docs todo...
-//!
-//! # Creating a Metric
-//! Registering a metric is straightforward. All that's needed is to declare a
-//! static within the [`metric`] macro. By default, the metric will have the
-//! name of the path to the static variable you used to declare it but this can
-//! be overridden by passing the `name` parameter to the macro.
-//!
-//! ```
-//! # // This should remain in sync with the example below.
-//! use metriken::*;
-//! /// A counter metric named "<crate name>::COUNTER_A"
-//! #[metric]
-//! static COUNTER_A: Counter = Counter::new();
-//!
-//! /// A counter metric named "my.metric.name"
-//! #[metric(name = "my.metric.name")]
-//! static COUNTER_B: Counter = Counter::new();
-//! #
-//! # let metrics = metrics();
-//! # // Metrics may be in any arbitrary order
-//! # let mut names: Vec<_> = metrics.iter().map(|metric| metric.name()).collect();
-//! # names.sort();
-//! #
-//! # assert_eq!(names.len(), 2);
-//! # assert_eq!(names[0], "my.metric.name");
-//! # assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
-//! ```
-//!
-//! # Accessing Metrics
-//! All metrics registered via the [`metric`] macro can be accessed by calling
-//! the [`metrics`] function. This will return an instance of the [`Metric`]
-//! struct which allows you to access all staticly and dynamically registered
-//! metrics.
-//!
-//! Suppose we have the metrics declared in the example above.
-//! ```
-//! # // This should remain in sync with the example above.
-//! # use metriken::*;
-//! # /// A counter metric named "<crate name>::COUNTER_A"
-//! # #[metric]
-//! # static COUNTER_A: Counter = Counter::new();
-//! #
-//! # /// A counter metric named "my.metric.name"
-//! # #[metric(name = "my.metric.name")]
-//! # static COUNTER_B: Counter = Counter::new();
-//! #
-//! let metrics = metrics();
-//! // Metrics may be in any arbitrary order
-//! let mut names: Vec<_> = metrics.iter().map(|metric| metric.name()).collect();
-//! names.sort();
-//!
-//! assert_eq!(names.len(), 2);
-//! assert_eq!(names[0], "my.metric.name");
-//! assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
-//! ```
-//!
-//! # How it Works
-//! Behind the scenes, this crate uses the [`linkme`] crate to create a
-//! distributed slice containing a [`MetricEntry`] instance for each metric that
-//! is registered via the [`metric`] attribute.
-
+use core::any::Any;
+use core::ops::Deref;
+use core::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use parking_lot::RwLock;
 use parking_lot::RwLockReadGuard;
-use std::any::Any;
-use std::borrow::Cow;
+use phf::Map;
+use std::borrow::Borrow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::OnceLock;
 
-mod counter;
-mod gauge;
-mod heatmap;
-mod lazy;
-
-extern crate self as metriken;
-
-pub mod dynmetrics;
-
-pub use crate::counter::Counter;
-pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric};
-pub use crate::gauge::Gauge;
-pub use crate::heatmap::Heatmap;
-pub use crate::lazy::{Lazy, Relaxed};
-
+pub use casey::lower;
 pub use metriken_derive::metric;
+pub use phf::phf_map;
 
-pub extern crate clocksource as time;
+mod counters;
+mod gauges;
+mod heatmap;
+mod metrics;
 
-#[doc(hidden)]
-pub use metriken_derive::to_lowercase;
+pub use crate::heatmap::Heatmap;
+pub use counters::{Counter, LazyCounter};
+pub use gauges::{Gauge, LazyGauge};
+pub(crate) use metrics::DynamicRegistry;
+pub use metrics::{
+    DynamicEntry, DynamicMetric, DynamicMetricBuilder, Metric, MetricEntry, MetricIterator,
+    Metrics, StaticEntry, StaticMetric,
+};
 
-#[doc(hidden)]
-pub mod export {
-    pub extern crate linkme;
-    pub use clocksource::{Duration, Nanoseconds};
+pub(crate) static DYNAMIC_REGISTRY: DynamicRegistry = DynamicRegistry::new();
 
-    #[linkme::distributed_slice]
-    pub static METRICS: [crate::MetricEntry] = [..];
+#[linkme::distributed_slice]
+pub static STATIC_ENTRIES: [StaticEntry] = [..];
+
+pub enum Format {
+    Plain,
+    Prometheus,
 }
 
-#[macro_export]
-#[rustfmt::skip]
-macro_rules! counter {
-    ($name:ident) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            crate = $crate
-        )]
-        pub static $name: $crate::Counter = $crate::Counter::new();
-    };
-    ($name:ident, $description:tt) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            description = $description,
-            crate = $crate
-        )]
-        pub static $name: $crate::Counter = $crate::Counter::new();
-    };
-}
-
-#[macro_export]
-#[rustfmt::skip]
-macro_rules! gauge {
-    ($name:ident) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            crate = $crate
-        )]
-        pub static $name: $crate::Gauge = $crate::Gauge::new();
-    };
-    ($name:ident, $description:tt) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            description = $description,
-            crate = $crate
-        )]
-        pub static $name: $crate::Gauge = $crate::Gauge::new();
-    };
-}
-
-#[macro_export]
-#[rustfmt::skip]
-macro_rules! heatmap {
-    ($name:ident, $max:expr) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            crate = $crate
-        )]
-        pub static $name: $crate::Relaxed<$crate::Heatmap> = $crate::Relaxed::new(|| {
-            $crate::Heatmap::builder()
-                .maximum_value($max as _)
-                .min_resolution(1)
-                .min_resolution_range(1024)
-                .span($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(60))
-                .resolution($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(1))
-                .build()
-                .expect("bad heatmap configuration")
-        });
-    };
-    ($name:ident, $max:expr, $description:tt) => {
-        #[$crate::metric(
-            name = $crate::to_lowercase!($name),
-            description = $description,
-            crate = $crate
-        )]
-        pub static $name: $crate::Relaxed<$crate::Heatmap> = $crate::Relaxed::new(|| {
-            $crate::Heatmap::builder()
-                .maximum_value($max as _)
-                .min_resolution(1)
-                .min_resolution_range(1024)
-                .span($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(60))
-                .resolution($crate::export::Duration::<$crate::export::Nanoseconds<u64>>::from_secs(1))
-                .build()
-                .expect("bad heatmap configuration")
-        });
-    };
-}
-
-/// Global interface to a metric.
-///
-/// Most use of metrics should use the directly declared constants.
-pub trait Metric: Send + Sync + 'static {
-    /// Indicate whether this metric has been set up.
-    ///
-    /// Generally, if this returns `false` then the other methods on this
-    /// trait should return `None`.
-    fn is_enabled(&self) -> bool {
-        self.as_any().is_some()
-    }
-
-    /// Get the current metric as an [`Any`] instance. This is meant to allow
-    /// custom processing for known metric types.
-    ///
-    /// [`Any`]: std::any::Any
-    fn as_any(&self) -> Option<&dyn Any>;
-}
-
-/// A statically declared metric entry.
-pub struct MetricEntry {
-    metric: MetricWrapper,
-    name: Cow<'static, str>,
-    namespace: Option<&'static str>,
-    description: Option<&'static str>,
-}
-
-impl MetricEntry {
-    #[doc(hidden)]
-    pub const fn _new_const(
-        metric: MetricWrapper,
-        name: &'static str,
-        namespace: &'static str,
-        description: &'static str,
-    ) -> Self {
-        let namespace = if namespace.is_empty() {
-            None
-        } else {
-            Some(namespace)
-        };
-        let description = if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        };
-        Self {
-            metric,
-            name: Cow::Borrowed(name),
-            namespace,
-            description,
-        }
-    }
-
-    /// Create a new metric entry with the provided metric and name.
-    pub fn new(metric: &'static dyn Metric, name: Cow<'static, str>) -> Self {
-        // SAFETY: The lifetimes here are static.
-        unsafe { Self::new_unchecked(metric, name) }
-    }
-
-    /// Create a new metric entry with the provided metric and name.
-    ///
-    /// # Safety
-    /// This method is only safe to call if
-    /// - `metric` points to a valid `dyn Metric` instance, and,
-    /// - the metric instance outlives this `MetricEntry`.
-    pub unsafe fn new_unchecked(metric: *const dyn Metric, name: Cow<'static, str>) -> Self {
-        Self {
-            metric: MetricWrapper(metric),
-            name,
-            namespace: None,
-            description: None,
-        }
-    }
-
-    /// Get a reference to the metric that this entry corresponds to.
-    pub fn metric(&self) -> &dyn Metric {
-        unsafe { &*self.metric.0 }
-    }
-
-    /// Get the name of this metric.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get the namespace of this metric.
-    pub fn namespace(&self) -> Option<&str> {
-        self.namespace
-    }
-
-    /// Get the description of this metric.
-    pub fn description(&self) -> Option<&str> {
-        self.description
-    }
-}
-
-unsafe impl Send for MetricEntry {}
-unsafe impl Sync for MetricEntry {}
-
-impl std::ops::Deref for MetricEntry {
-    type Target = dyn Metric;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self.metric()
-    }
-}
-
-impl std::fmt::Debug for MetricEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MetricEntry")
-            .field("name", &self.name())
-            .field("metric", &"<dyn Metric>")
-            .finish()
-    }
-}
-
-/// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
-/// is fine. This wrapper is a work around to allow us to use const constructors
-/// for the MetricEntry struct.
-#[doc(hidden)]
-pub struct MetricWrapper(pub *const dyn Metric);
-
-/// The list of all metrics registered via the either [`metric`] attribute or by
-/// using the types within the [`dynmetrics`] module.
-///
-/// Names within metrics are not guaranteed to be unique and no aggregation of
-/// metrics with the same name is done.
 pub fn metrics() -> Metrics {
     Metrics {
-        dyn_metrics: crate::dynmetrics::get_registry(),
+        dynamic: DYNAMIC_REGISTRY.read(),
     }
 }
 
-/// Provides access to all registered metrics both static and dynamic.
-///
-/// **IMPORTANT:** Note that while any instance of this struct is live
-/// attempting to register or unregister any dynamic metrics will block.
-/// If this is done on the same thread as is currently working with an instance
-/// of `Metrics` then it will cause a deadlock. If your application will be
-/// registering and unregistering dynamic metrics then you should avoid holding
-/// on to `Metrics` instances for long periods of time.
-///
-/// `Metrics` instances can be created via the [`metrics`] function.
-pub struct Metrics {
-    dyn_metrics: RwLockReadGuard<'static, dynmetrics::DynMetricsRegistry>,
+pub fn deregister_all() {
+    Metrics::deregister_all()
 }
 
-impl Metrics {
-    /// A list containing all metrics that were registered via the [`metric`]
-    /// attribute macro.
-    pub fn static_metrics(&self) -> &'static [MetricEntry] {
-        &crate::export::METRICS
-    }
-
-    /// A list containing all metrics that were dynamically registered.
-    pub fn dynamic_metrics(&self) -> &[MetricEntry] {
-        self.dyn_metrics.metrics()
-    }
-
-    pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
-        self.into_iter()
+pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {
+    match format {
+        Format::Plain => {
+            // the default format is to just return the metric name
+            metric.name().map(|name| name.to_string())
+        }
+        Format::Prometheus => {
+            // prometheus format is the name followed by each metadata entry
+            // as a label (filtering: `name` and `description` entries)
+            let metadata = metric
+                .metadata()
+                .iter()
+                .filter(|(k, _v)| {
+                    **k != "name" && **k != "description"
+                })
+                .map(|(k, v)| {
+                    format!("{k}=\"{v}\"")
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            metric.name().map(|name| format!("{name}{{{metadata}}}"))
+        }
     }
 }
 
-impl<'a> IntoIterator for &'a Metrics {
-    type Item = &'a MetricEntry;
+#[macro_export]
+#[rustfmt::skip]
+macro_rules! metadata {
+    ($($tts:tt)*) => {
+        metriken::Metadata::new(metriken::phf_map!($($tts)*))
+    };
+}
 
-    type IntoIter =
-        std::iter::Chain<std::slice::Iter<'a, MetricEntry>, std::slice::Iter<'a, MetricEntry>>;
+pub struct Metadata {
+    map: Map<&'static str, &'static str>,
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.static_metrics()
-            .iter()
-            .chain(self.dynamic_metrics().iter())
+impl Metadata {
+    pub const fn new(map: Map<&'static str, &'static str>) -> Self {
+        Self { map }
+    }
+
+    pub const fn empty() -> Self {
+        Self { map: phf_map!() }
     }
 }
 
-/// The type of the static generated by `#[metric]`.
-///
-/// This exports the name of the generated metric so that other code
-/// can use it.
-pub struct MetricInstance<M> {
-    // The generated code by the #[metric] attribute needs to access this
-    // directly so it needs to be public.
-    #[doc(hidden)]
-    pub metric: M,
-    name: &'static str,
-    description: Option<&'static str>,
+impl Metadata {
+    pub fn name(&self) -> Option<&str> {
+        self.get_label("name")
+    }
+
+    pub fn help(&self) -> Option<&str> {
+        self.get_label("help")
+    }
+
+    pub fn get_label(&self, label: &'static str) -> Option<&str> {
+        self.map.get(label).copied()
+    }
 }
 
-impl<M> MetricInstance<M> {
-    #[doc(hidden)]
-    pub const fn new(metric: M, name: &'static str, description: &'static str) -> Self {
-        let description = if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        };
-        Self {
-            metric,
-            name,
-            description,
+#[cfg(test)]
+mod tests {
+    use crate::*;
+    use parking_lot::const_mutex;
+    use parking_lot::Mutex;
+    use parking_lot::MutexGuard;
+
+    static MUTEX: Mutex<()> = const_mutex(());
+
+    struct Guard {
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            Metrics::deregister_all()
         }
     }
 
-    /// Get the name of this metric.
-    pub const fn name(&self) -> &'static str {
-        self.name
+    #[test]
+    fn dynamic_counters() {
+        let _guard = MUTEX.lock();
+
+        // the registry is empty
+        assert_eq!(DYNAMIC_REGISTRY.len(), 0);
+
+        // define a new counter
+        let a = DynamicMetric::builder(Counter::new(), "counter-a").build();
+
+        // show that the counter is added and functions as expected
+
+        assert_eq!(a.value(), 0);
+        assert_eq!(DYNAMIC_REGISTRY.len(), 1);
+
+        assert_eq!(a.increment(), 0);
+        assert_eq!(a.value(), 1);
+        assert_eq!(a.add(2), 1);
+        assert_eq!(a.value(), 3);
+
+        // add another counter
+        let b = DynamicMetric::builder(Counter::new(), "counter-b").build();
+
+        // show that the new gauge is added and functions independently
+
+        assert_eq!(DYNAMIC_REGISTRY.len(), 2);
+        assert_eq!(a.value(), 3);
+
+        assert_eq!(b.value(), 0);
+        assert_eq!(b.add(10), 0);
+        assert_eq!(b.value(), 10);
+
+        assert_eq!(a.value(), 3);
+
+        // drop one of the counters and see that the registry length reflects
+        // successful deregistration
+
+        drop(a);
+
+        assert_eq!(DYNAMIC_REGISTRY.len(), 1);
     }
 
-    /// Get the description of this metric.
-    pub const fn description(&self) -> Option<&'static str> {
-        self.description
+    #[test]
+    fn dynamic_gauges() {
+        let _guard = MUTEX.lock();
+
+        // the registry is empty
+        assert_eq!(DYNAMIC_REGISTRY.len(), 0);
+
+        // define a new gauge
+        let a = DynamicMetric::builder(Gauge::new(), "gauge-a").build();
+
+        // show that the counter is added and functions as expected
+
+        assert_eq!(a.value(), 0);
+        assert_eq!(DYNAMIC_REGISTRY.len(), 1);
+
+        assert_eq!(a.increment(), 0);
+        assert_eq!(a.value(), 1);
+        assert_eq!(a.add(2), 1);
+        assert_eq!(a.value(), 3);
+
+        assert_eq!(a.decrement(), 3);
+        assert_eq!(a.value(), 2);
+        assert_eq!(a.sub(3), 2);
+        assert_eq!(a.value(), -1);
+
+        // add another gauge
+        let b = DynamicMetric::builder(Counter::new(), "gauge-b").build();
+
+        // show that the new gauge is added and functions independently
+
+        assert_eq!(DYNAMIC_REGISTRY.len(), 2);
+        assert_eq!(a.value(), -1);
+
+        assert_eq!(b.value(), 0);
+        assert_eq!(b.add(10), 0);
+        assert_eq!(b.value(), 10);
+
+        assert_eq!(a.value(), -1);
+
+        // drop one of the gauges and see that the registry length reflects
+        // successful deregistration
+
+        drop(a);
+
+        assert_eq!(DYNAMIC_REGISTRY.len(), 1);
     }
-}
 
-impl<M> std::ops::Deref for MetricInstance<M> {
-    type Target = M;
+    #[test]
+    fn dynamic_lazy_counter() {
+        let _guard = MUTEX.lock();
 
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.metric
+        // the registry is empty
+        assert_eq!(DYNAMIC_REGISTRY.len(), 0);
+
+        // add a lazy counter to the registry
+        let a = DynamicMetric::builder(LazyCounter::default(), "counter-a").build();
+
+        assert_eq!(DYNAMIC_REGISTRY.len(), 1);
+
+        // since the counter has only been defined and not used, it remains
+        // uninitialized
+
+        for metric in &metrics() {
+            if let Some(counter) = metric.as_any().downcast_ref::<LazyCounter>() {
+                assert!(counter.value().is_none());
+            } else {
+                panic!("unexpected metric type");
+            }
+        }
+
+        // after using the counter, the metric is initialized
+
+        a.increment();
+
+        for metric in &metrics() {
+            if let Some(counter) = metric.as_any().downcast_ref::<LazyCounter>() {
+                assert!(counter.value().is_some());
+            } else {
+                panic!("unexpected metric type");
+            }
+        }
     }
-}
 
-impl<M> std::ops::DerefMut for MetricInstance<M> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.metric
-    }
-}
+    #[test]
+    fn format() {
+        let _guard = MUTEX.lock();
+        
+        let _a = DynamicMetric::builder(Counter::new(), "counter").metadata("key", "value").build();
+        let metrics = metrics();
+        let entry = metrics.iter().next().unwrap();
 
-impl<M> AsRef<M> for MetricInstance<M> {
-    #[inline]
-    fn as_ref(&self) -> &M {
-        &self.metric
-    }
-}
-
-impl<M> AsMut<M> for MetricInstance<M> {
-    #[inline]
-    fn as_mut(&mut self) -> &mut M {
-        &mut self.metric
+        assert_eq!(entry.format(Format::Plain), Some("counter".to_string()));
+        assert_eq!(entry.format(Format::Prometheus), Some("counter{key=\"value\"}".to_string()));
     }
 }

@@ -1,22 +1,18 @@
 [package]
 name = "metriken-derive"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-authors = [
-	"Brian Martin <brian@pelikan.io>",
-	"Sean Lynch <seanl@twitter.com>",
-]
-license = "Apache-2.0"
-description = "Proc macros for metriken"
+authors = ["Brian Martin <brian@iop.systems>"]
+license = "MIT OR Apache-2.0"
+description = "proc_macros for metriken"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
-
 
 [lib]
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.39"
-proc-macro-crate = "1.0.0"
-quote = "1.0.9"
-syn = { version = "1.0.95", features = ["full", "parsing"] }
+proc-macro2 = "1.0.64"
+proc-macro-crate = "1.3.1"
+quote = "1.0.29"
+syn = { version = "2.0.25", features = ["full", "parsing"] }
