@@ -1,3 +1,23 @@
+//! Metriken is a metrics library with a focus on providing fast and lightweight
+//! metrics for Rust programs and libraries.
+//!
+//! Unlike other metrics libraries, Metriken allows for static definitions of
+//! metrics. This creates an easy-to-use metrics infrastructure with extremely
+//! low overheads. Metriken also allows for defining metrics dynamically at
+//! runtime.
+//!
+//! Metrics can have associated metadata in the form of key-value pairs as well
+//! as a custom formatting function. This allows for richer annotations for
+//! observability systems that can handle key-value labels. It also allows
+//! special formatting for more traditional observability systems where some
+//! of the metadata needs to be encoded into the metric name for exposition.
+//!
+//! Metriken provides three kinds of metrics storage:
+//! * counters - for monotonically non-decreasing values
+//! * gauges - for values which may increase or decrease
+//! * heatmaps - moving histograms which track a quantized full-distribution
+//!   of value-count pairs for a given window in time
+
 use core::any::Any;
 use core::ops::Deref;
 use core::sync::atomic::{AtomicI64, AtomicU64, Ordering};

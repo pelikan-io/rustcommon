@@ -1,7 +1,8 @@
 use crate::*;
 
 /// A gauge holds a signed 64-bit value and is used to represent metrics which
-/// may increase or decrease in value.
+/// may increase or decrease in value. The behavior is to wrap around on
+/// overflow and underflow.
 ///
 /// Common examples are queue depths, temperatures, and usage metrics.
 ///

@@ -1,6 +1,6 @@
 use crate::*;
 
-/// A counter holds a unsigned 64bit monotonically increasing counter. The
+/// A counter holds a unsigned 64bit monotonically non-decreasing value. The
 /// counter behavior is to wrap on overflow.
 ///
 /// Common examples are the number of operations (requests, reads, ...) or
