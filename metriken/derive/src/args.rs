@@ -7,6 +7,14 @@ use std::fmt::{Display, Formatter, Result};
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, Token};
 
+/// The name of an attribute macro argument.
+///
+/// ```text
+/// #[macro(name = value)]
+///         ^^^^
+/// ```
+///
+/// This can be either a normal identifier or the `crate` token.
 #[derive(Clone)]
 pub(crate) enum ArgName {
     Ident(Ident),

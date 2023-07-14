@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use std::collections::HashMap;
+
 use crate::args::ArgName;
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::FoundCrate;
@@ -36,10 +38,9 @@ impl<T: ToTokens> ToTokens for SingleArg<T> {
 
 #[derive(Default)]
 struct MetricArgs {
-    name: Option<SingleArg<Expr>>,
-    namespace: Option<SingleArg<Expr>>,
-    description: Option<SingleArg<Expr>>,
+    formatter: Option<SingleArg<Expr>>,
     krate: Option<SingleArg<Path>>,
+    attrs: HashMap<String, Expr>,
 }
 
 impl Parse for MetricArgs {
@@ -65,25 +66,11 @@ impl Parse for MetricArgs {
 
             let arg: ArgName = input.fork().parse()?;
             match &*arg.to_string() {
-                "name" => {
-                    let name = input.parse()?;
-                    match args.name {
-                        None => args.name = Some(name),
-                        Some(_) => return duplicate_arg_error(name.span(), &arg),
-                    }
-                }
-                "namespace" => {
-                    let namespace = input.parse()?;
-                    match args.namespace {
-                        None => args.namespace = Some(namespace),
-                        Some(_) => return duplicate_arg_error(namespace.span(), &arg),
-                    }
-                }
-                "description" => {
-                    let description = input.parse()?;
-                    match args.description {
-                        None => args.description = Some(description),
-                        Some(_) => return duplicate_arg_error(description.span(), &arg),
+                "formatter" => {
+                    let formatter = input.parse()?;
+                    match args.formatter {
+                        None => args.formatter = Some(formatter),
+                        Some(_) => return duplicate_arg_error(formatter.span(), &arg),
                     }
                 }
                 "crate" => {
@@ -97,11 +84,14 @@ impl Parse for MetricArgs {
                         Some(_) => return duplicate_arg_error(krate.span(), &arg),
                     }
                 }
-                x => {
-                    return Err(Error::new(
-                        arg.span(),
-                        format!("Unrecognized argument '{}'", x),
-                    ))
+                _ => {
+                    let entry: SingleArg<Expr> = input.parse()?;
+                    let ident = entry.ident.to_string();
+                    if args.attrs.contains_key(&ident) {
+                        return duplicate_arg_error(entry.span(), &entry.ident);
+                    }
+
+                    args.attrs.insert(ident, entry.value);
                 }
             }
         }
@@ -115,66 +105,52 @@ pub(crate) fn metric(
     item_: proc_macro::TokenStream,
 ) -> syn::Result<TokenStream> {
     let mut item: ItemStatic = syn::parse(item_)?;
-    let args: MetricArgs = syn::parse(attr_)?;
+    let mut args: MetricArgs = syn::parse(attr_)?;
 
-    let krate: TokenStream = match args.krate {
-        Some(krate) => krate.value.to_token_stream(),
+    let krate: Path = match args.krate {
+        Some(krate) => krate.value,
         None => proc_macro_crate::crate_name("metriken")
             .map(|krate| match krate {
                 FoundCrate::Name(name) => {
                     assert_ne!(name, "");
-                    Ident::new(&name, Span::call_site()).to_token_stream()
+                    Ident::new(&name, Span::call_site()).into()
                 }
-                FoundCrate::Itself => quote! { metriken },
+                FoundCrate::Itself => parse_quote! { metriken },
             })
-            .unwrap_or(quote! { metriken }),
-    };
-
-    let name: TokenStream = match args.name {
-        Some(name) => name.value.to_token_stream(),
-        None => {
-            let item_name = &item.ident;
-            quote! { concat!(module_path!(), "::", stringify!(#item_name)) }
-        }
-    };
-
-    let namespace: TokenStream = match args.namespace {
-        Some(namespace) => namespace.value.to_token_stream(),
-        None => {
-            quote! {""}
-        }
-    };
-
-    let description: TokenStream = match args.description {
-        Some(description) => description.value.to_token_stream(),
-        None => {
-            quote! {""}
-        }
+            .unwrap_or(parse_quote! { metriken }),
     };
 
     let static_name = &item.ident;
     let static_expr = &item.expr;
-    let static_type = &item.ty;
+    let private: Path = parse_quote!(#krate::__private);
+
+    if !args.attrs.contains_key("name") {
+        args.attrs
+            .insert("name".to_string(), parse_quote!(stringify!(#static_name)));
+    }
+
+    let formatter = args
+        .formatter
+        .map(|fmt| fmt.value)
+        .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
+
+    let attrs: Vec<_> = args
+        .attrs
+        .iter()
+        .map(|(key, value)| quote!( #key => #value ))
+        .collect();
 
     item.expr = Box::new(parse_quote! {{
-        // Rustc reserves attributes that start with "rustc". Since rustcommon
-        // starts with "rustc" we can't use it directly within attributes. To
-        // work around this, we first import the exports submodule and then use
-        // that for the attributes.
-        use #krate::export;
-
-        #[export::linkme::distributed_slice(export::METRICS)]
-        #[linkme(crate = export::linkme)]
-        static __: #krate::MetricEntry = #krate::MetricEntry::_new_const(
-            #krate::MetricWrapper(&#static_name.metric),
-            #static_name.name(),
-            #namespace,
-            #description
+        #[#private::linkme::distributed_slice(#krate::STATIC_REGISTRY)]
+        #[linkme(crate = #private::linkme)]
+        static __: #krate::StaticEntry = #krate::StaticEntry::new(
+            &#static_name,
+            #krate::metadata!(#( #attrs ),*),
+            #formatter
         );
 
-        #krate::MetricInstance::new(#static_expr, #name, #description)
+        #static_expr
     }});
-    item.ty = Box::new(parse_quote! { #krate::MetricInstance<#static_type> });
 
     Ok(quote! { #item })
 }
