@@ -10,6 +10,12 @@ use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{parse_quote, Error, Expr, Ident, ItemStatic, Path, Token};
 
+/// A single argument to an attribute macro.
+///
+/// ```text
+/// #[macro(name = value, a = "string")]
+///         ^^^^^^^^^^^^  ^^^^^^^^^^^^
+/// ```
 struct SingleArg<T> {
     ident: ArgName,
     eq: Token![=],
@@ -34,6 +40,16 @@ impl<T: ToTokens> ToTokens for SingleArg<T> {
     }
 }
 
+/// All arguments to the metric attribute macro
+///
+/// ```text
+/// #[metric(formatter = &fmt, name = "metric")]
+///          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+///
+/// The parse implementation for this type separates out the `formatter` and
+/// `krate` arguments. All others are passed verbatim to the
+/// `metriken::metadata!` macro.
 #[derive(Default)]
 struct MetricArgs {
     name: Option<SingleArg<Expr>>,
@@ -57,6 +73,10 @@ impl Parse for MetricArgs {
             ))
         }
 
+        // # How parsing works
+        // We first peek at the next token and use that to determine which
+        // argument to parse. `formatter` and `crate` are handled specially
+        // while anything else is put into the attrs map.
         while !input.is_empty() {
             if !first {
                 let _: Token![,] = input.parse()?;
