@@ -10,6 +10,8 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 
 pub use metriken_derive::metric;
+
+#[doc(hidden)]
 pub use phf::phf_map;
 
 mod counters;
@@ -20,16 +22,18 @@ mod metrics;
 pub use crate::heatmap::Heatmap;
 pub use counters::{Counter, LazyCounter};
 pub use gauges::{Gauge, LazyGauge};
-pub(crate) use metrics::DynamicRegistry;
+
 pub use metrics::{
     DynamicEntry, DynamicMetric, DynamicMetricBuilder, Metric, MetricEntry, MetricIterator,
     Metrics, StaticEntry, StaticMetric,
 };
 
+pub(crate) use metrics::DynamicRegistry;
 pub(crate) static DYNAMIC_REGISTRY: DynamicRegistry = DynamicRegistry::new();
 
+#[doc(hidden)]
 #[linkme::distributed_slice]
-pub static STATIC_ENTRIES: [StaticEntry] = [..];
+pub static STATIC_REGISTRY: [StaticEntry] = [..];
 
 pub enum Format {
     Plain,

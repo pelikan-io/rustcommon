@@ -74,7 +74,7 @@ impl<'a> Iterator for MetricIterator<'a> {
         } else {
             let idx = self.static_index;
             self.static_index += 1;
-            STATIC_ENTRIES.get(idx).map(|v| v as _)
+            STATIC_REGISTRY.get(idx).map(|v| v as _)
         }
     }
 }

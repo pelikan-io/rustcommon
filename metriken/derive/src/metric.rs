@@ -102,7 +102,7 @@ pub(crate) fn metric(
     if formatter.is_none() && attrs.is_empty() {
         Ok(quote! {
             pub static #ident: #ty = {
-                #[linkme::distributed_slice(metriken::STATIC_ENTRIES)]
+                #[linkme::distributed_slice(metriken::STATIC_REGISTRY)]
                 static __: metriken::StaticEntry = metriken::StaticEntry::new(
                     &#ident,
                     metriken::metadata!("name" => #name),
@@ -115,7 +115,7 @@ pub(crate) fn metric(
     } else if formatter.is_none() {
         Ok(quote! {
             pub static #ident: #ty = {
-                #[linkme::distributed_slice(metriken::STATIC_ENTRIES)]
+                #[linkme::distributed_slice(metriken::STATIC_REGISTRY)]
                 static __: metriken::StaticEntry = metriken::StaticEntry::new(
                     &#ident,
                     metriken::metadata!(#attrs),
@@ -129,7 +129,7 @@ pub(crate) fn metric(
         let formatter: TokenStream = formatter.unwrap().into_iter().collect();
         Ok(quote! {
             pub static #ident: #ty = {
-                #[linkme::distributed_slice(metriken::STATIC_ENTRIES)]
+                #[linkme::distributed_slice(metriken::STATIC_REGISTRY)]
                 static __: metriken::StaticEntry = metriken::StaticEntry::new(
                     &#ident,
                     metriken::metadata!("name" => #name),
@@ -143,7 +143,7 @@ pub(crate) fn metric(
         let formatter: TokenStream = formatter.unwrap().into_iter().collect();
         Ok(quote! {
             pub static #ident: #ty = {
-                #[linkme::distributed_slice(metriken::STATIC_ENTRIES)]
+                #[linkme::distributed_slice(metriken::STATIC_REGISTRY)]
                 static __: metriken::StaticEntry = metriken::StaticEntry::new(
                     &#ident,
                     metriken::metadata!(#attrs),
