@@ -82,12 +82,8 @@ pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<Str
             let metadata = metric
                 .metadata()
                 .iter()
-                .filter(|(k, _v)| {
-                    **k != "name" && **k != "description"
-                })
-                .map(|(k, v)| {
-                    format!("{k}=\"{v}\"")
-                })
+                .filter(|(k, _v)| **k != "name" && **k != "description")
+                .map(|(k, v)| format!("{k}=\"{v}\""))
                 .collect::<Vec<_>>()
                 .join(",");
             metric.name().map(|name| format!("{name}{{{metadata}}}"))
@@ -278,12 +274,17 @@ mod tests {
     #[test]
     fn format() {
         let _guard = MUTEX.lock();
-        
-        let _a = DynamicMetric::builder(Counter::new(), "counter").metadata("key", "value").build();
+
+        let _a = DynamicMetric::builder(Counter::new(), "counter")
+            .metadata("key", "value")
+            .build();
         let metrics = metrics();
         let entry = metrics.iter().next().unwrap();
 
         assert_eq!(entry.format(Format::Plain), Some("counter".to_string()));
-        assert_eq!(entry.format(Format::Prometheus), Some("counter{key=\"value\"}".to_string()));
+        assert_eq!(
+            entry.format(Format::Prometheus),
+            Some("counter{key=\"value\"}".to_string())
+        );
     }
 }

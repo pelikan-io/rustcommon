@@ -39,9 +39,7 @@ pub fn custom_formatter(metric: &dyn MetricEntry, format: Format) -> Option<Stri
                 metric.get_label("key").unwrap_or("unknown")
             )
         }),
-        format => {
-            metriken::default_formatter(metric, format)
-        }
+        format => metriken::default_formatter(metric, format),
     }
 }
 
