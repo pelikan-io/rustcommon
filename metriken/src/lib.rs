@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-pub use casey::lower;
 pub use metriken_derive::metric;
 pub use phf::phf_map;
 

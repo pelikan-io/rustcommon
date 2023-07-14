@@ -9,7 +9,6 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-casey = "0.4.0"
 histogram = { version = "0.7.3", path = "../histogram" }
 heatmap = { version = "0.7.5", path = "../heatmap" }
 linkme = "0.3.3"
