@@ -2,7 +2,10 @@
 name = "metriken"
 version = "0.2.0"
 edition = "2021"
-authors = ["Brian Martin <brian@iop.systems>"]
+authors = [
+	"Brian Martin <brian@iop.systems>",
+	"Sean Lynch <sean@iop.systems>",
+]
 license = "MIT OR Apache-2.0"
 description = "A fast and lightweight metrics library"
 homepage = "https://github.com/pelikan-io/rustcommon"
