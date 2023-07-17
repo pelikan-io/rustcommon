@@ -28,6 +28,11 @@ impl Gauge {
         self.value.load(Ordering::Relaxed)
     }
 
+    /// Sets the current value of the gauge.
+    pub fn set(&self, value: i64) {
+        self.value.store(value, Ordering::Relaxed)
+    }
+
     /// Adds one to the current gauge value and returns the previous value.
     pub fn increment(&self) -> i64 {
         self.add(1)
