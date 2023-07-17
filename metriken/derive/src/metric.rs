@@ -4,43 +4,13 @@
 
 use std::collections::HashMap;
 
-use crate::args::ArgName;
+use crate::args::{ArgName, SingleArg};
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::FoundCrate;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{parse_quote, Error, Expr, Ident, ItemStatic, Path, Token};
-
-/// A single argument to an attribute macro.
-///
-/// ```text
-/// #[macro(name = value, a = "string")]
-///         ^^^^^^^^^^^^  ^^^^^^^^^^^^
-/// ```
-struct SingleArg<T> {
-    ident: ArgName,
-    eq: Token![=],
-    value: T,
-}
-
-impl<T: Parse> Parse for SingleArg<T> {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            ident: input.parse()?,
-            eq: input.parse()?,
-            value: input.parse()?,
-        })
-    }
-}
-
-impl<T: ToTokens> ToTokens for SingleArg<T> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.ident.to_tokens(tokens);
-        self.eq.to_tokens(tokens);
-        self.value.to_tokens(tokens);
-    }
-}
 
 /// All arguments to the metric attribute macro
 ///
