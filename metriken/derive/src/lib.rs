@@ -22,6 +22,8 @@ mod metric;
 ///   their Cargo.toml.
 /// - (optional) `formatter`: A function to be used to determine the output name
 ///   for this metric.
+/// - (optional) `metadata`: A set of key-value pairs that can be used to expose
+///   arbitrary metadata about this metric.
 ///
 /// [`Deref`]: std::ops::Deref
 /// [`DerefMut`]: std::ops::DerefMut
