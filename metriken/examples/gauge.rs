@@ -13,13 +13,13 @@ pub static GAUGE_WITH_NAME: Gauge = Gauge::new();
 #[metric(name = "gauge_name", description = "description")]
 pub static GAUGE_WITH_DESCRIPTION: Gauge = Gauge::new();
 
-#[metric(name = "gauge_name", description = "description", key = "value")]
+#[metric(name = "gauge_name", description = "description", metadata = { key = "value" })]
 pub static GAUGE_WITH_METADATA: Gauge = Gauge::new();
 
 #[metric(name = "gauge_name", description = "description", formatter = &custom_formatter)]
 pub static GAUGE_WITH_FORMATTER: Gauge = Gauge::new();
 
-#[metric(name = "gauge_name", description = "description", formatter = &custom_formatter, key = "value")]
+#[metric(name = "gauge_name", description = "description", formatter = &custom_formatter, metadata = { key = "value" })]
 pub static GAUGE_WITH_FORMATTER_AND_METADATA: Gauge = Gauge::new();
 
 pub fn custom_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {

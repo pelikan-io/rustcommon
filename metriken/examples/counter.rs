@@ -13,13 +13,13 @@ pub static COUNTER_WITH_NAME: Counter = Counter::new();
 #[metric(name = "counter_name", description = "description")]
 pub static COUNTER_WITH_DESCRIPTION: Counter = Counter::new();
 
-#[metric(name = "counter_name", description = "description", key = "value")]
+#[metric(name = "counter_name", description = "description", metadata = { key = "value" })]
 pub static COUNTER_WITH_METADATA: Counter = Counter::new();
 
 #[metric(name = "counter_name", description = "description", formatter = &custom_formatter)]
 pub static COUNTER_WITH_FORMATTER: Counter = Counter::new();
 
-#[metric(name = "counter_name", description = "description", formatter = &custom_formatter, key = "value")]
+#[metric(name = "counter_name", description = "description", formatter = &custom_formatter, metadata = { key = "value" })]
 pub static COUNTER_WITH_FORMATTER_AND_METADATA: Counter = Counter::new();
 
 pub fn custom_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {
