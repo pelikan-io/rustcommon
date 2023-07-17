@@ -2,10 +2,8 @@
 use metriken::{metric, Counter};
 
 #[metric(
-    metadata = {
-        "a.value" = "b",
-        test = "c"
-    }
+    name = "a",
+    name = "b"
 )]
 static DUMMY: Counter = Counter::new();
 
