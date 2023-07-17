@@ -17,7 +17,7 @@ pub static HEATMAP_WITH_NAME: Heatmap =
 pub static HEATMAP_WITH_DESCRIPTION: Heatmap =
     Heatmap::new(0, 8, 64, Duration::from_secs(60), Duration::from_secs(1));
 
-#[metric(name = "heatmap_name", description = "description", key = "value")]
+#[metric(name = "heatmap_name", description = "description", metadata = { key = "value" })]
 pub static HEATMAP_WITH_METADATA: Heatmap =
     Heatmap::new(0, 8, 64, Duration::from_secs(60), Duration::from_secs(1));
 
@@ -25,7 +25,7 @@ pub static HEATMAP_WITH_METADATA: Heatmap =
 pub static HEATMAP_WITH_FORMATTER: Heatmap =
     Heatmap::new(0, 8, 64, Duration::from_secs(60), Duration::from_secs(1));
 
-#[metric(name = "heatmap_name", description = "description", formatter = &custom_formatter, key = "value")]
+#[metric(name = "heatmap_name", description = "description", formatter = &custom_formatter, metadata = { key = "value" })]
 pub static HEATMAP_WITH_FORMATTER_AND_METADATA: Heatmap =
     Heatmap::new(0, 8, 64, Duration::from_secs(60), Duration::from_secs(1));
 

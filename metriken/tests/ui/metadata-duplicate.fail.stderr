@@ -1,0 +1,5 @@
+error: duplicate metadata entry `a`
+ --> tests/ui/metadata-duplicate.fail.rs:7:9
+  |
+7 |         "a" = "value"
+  |         ^^^
