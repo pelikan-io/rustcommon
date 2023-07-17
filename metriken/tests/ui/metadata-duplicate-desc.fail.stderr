@@ -1,0 +1,5 @@
+error: `description` also specified as part of the metadata
+ --> tests/ui/metadata-duplicate-desc.fail.rs:6:5
+  |
+6 |     description = "a dummy metric",
+  |     ^^^^^^^^^^^
