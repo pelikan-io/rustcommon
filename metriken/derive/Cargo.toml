@@ -6,7 +6,7 @@ authors = [
 	"Brian Martin <brian@iop.systems>",
 	"Sean Lynch <sean@iop.systems>",
 ]
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 description = "proc_macros for metriken"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"

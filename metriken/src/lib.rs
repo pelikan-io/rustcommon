@@ -55,6 +55,11 @@ pub(crate) static DYNAMIC_REGISTRY: DynamicRegistry = DynamicRegistry::new();
 #[linkme::distributed_slice]
 pub static STATIC_REGISTRY: [StaticEntry] = [..];
 
+#[doc(hidden)]
+pub mod __private {
+    pub extern crate linkme;
+}
+
 pub enum Format {
     Plain,
     Prometheus,
