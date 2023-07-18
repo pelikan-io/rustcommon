@@ -123,6 +123,22 @@ pub mod export {
     pub const fn metadata(map: &'static phf::Map<&'static str, &'static str>) -> Metadata {
         Metadata::new_static(map)
     }
+
+    pub const fn entry(
+        metric: &'static dyn crate::Metric,
+        name: &'static str,
+        description: Option<&'static str>,
+    ) -> crate::MetricEntry {
+        use std::borrow::Cow;
+
+        crate::MetricEntry {
+            metric: crate::MetricWrapper(metric),
+            name: Cow::Borrowed(name),
+            description,
+            namespace: None,
+            metadata: Metadata::default_const()
+        }
+    }
 }
 
 /// Global interface to a metric.
@@ -191,11 +207,6 @@ impl MetricEntry {
     /// Get the name of this metric.
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    /// Get the namespace of this metric.
-    pub fn namespace(&self) -> Option<&str> {
-        self.namespace
     }
 
     /// Get the description of this metric.
