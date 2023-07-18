@@ -16,10 +16,15 @@ mod metric;
 /// so it can be used much the same as a normal static.  
 ///
 /// # Parameters
+/// - (optional) `name`: The string name that the metric should be exposed as.
+///   If not specified then the default name is one based on the path to the
+///   metric along with its name.
 /// - (optional) `crate`: The path to the `rustcommon_metrics` crate. This
 ///   allows the `metric` macro to be used within other macros that get exported
 ///   to third-party crates which may not have added `rustcommon_metrics` to
 ///   their Cargo.toml.
+/// - (optional) `description`: A textual description of the metric. If not
+///   specified then defaults to None
 /// - (optional) `formatter`: A function to be used to determine the output name
 ///   for this metric.
 ///
