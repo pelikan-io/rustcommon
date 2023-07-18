@@ -1,10 +1,10 @@
 [package]
 name = "metriken"
-version = "0.1.4"
+version = "0.2.0-alpha"
 edition = "2021"
 authors = [
-	"Brian Martin <brayniac@gmail.com>",
-	"Sean Lynch <seanl@twitter.com>",
+	"Brian Martin <brian@iop.systems>",
+	"Sean Lynch <sean@iop.systems>",
 ]
 license = "Apache-2.0"
 description = "A fast and lightweight metrics library"
