@@ -70,17 +70,33 @@ use parking_lot::RwLockReadGuard;
 use std::any::Any;
 use std::borrow::Cow;
 
+/// A helper macro for marking imports as being used.
+///
+/// This is meant to be used for when a reference is made to an item from a doc
+/// comment but that item isn't actually used for code anywhere.
+macro_rules! used_in_docs {
+    ($($item:ident),* $(,)?) => {
+        const _: () = {
+            #[allow(unused_imports)]
+            mod _docs {
+                $( use super::$item; )*
+            }
+        };
+    };
+}
+
 mod counter;
 mod gauge;
 mod heatmap;
 mod lazy;
+mod null;
 
 extern crate self as metriken;
 
 pub mod dynmetrics;
 
 pub use crate::counter::Counter;
-pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric};
+pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
 pub use crate::lazy::{Lazy, Relaxed};
@@ -203,7 +219,7 @@ pub struct MetricEntry {
     metric: MetricWrapper,
     name: Cow<'static, str>,
     namespace: Option<&'static str>,
-    description: Option<&'static str>,
+    description: Option<Cow<'static, str>>,
 }
 
 impl MetricEntry {
@@ -228,7 +244,10 @@ impl MetricEntry {
             metric,
             name: Cow::Borrowed(name),
             namespace,
-            description,
+            description: match description {
+                Some(desc) => Some(Cow::Borrowed(desc)),
+                None => None,
+            },
         }
     }
 
@@ -270,7 +289,7 @@ impl MetricEntry {
 
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
-        self.description
+        self.description.as_deref()
     }
 }
 
