@@ -73,10 +73,6 @@ pub fn metrics() -> Metrics {
     }
 }
 
-pub fn deregister_all() {
-    Metrics::deregister_all()
-}
-
 pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {
     match format {
         Format::Plain => {
@@ -139,19 +135,8 @@ mod tests {
     use crate::*;
     use parking_lot::const_mutex;
     use parking_lot::Mutex;
-    use parking_lot::MutexGuard;
-
+    
     static MUTEX: Mutex<()> = const_mutex(());
-
-    struct Guard {
-        _lock: MutexGuard<'static, ()>,
-    }
-
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            Metrics::deregister_all()
-        }
-    }
 
     #[test]
     fn dynamic_counters() {

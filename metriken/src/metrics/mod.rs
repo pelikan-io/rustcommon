@@ -31,14 +31,6 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub(crate) fn deregister_all() {
-        let metrics: Vec<Arc<dyn Metric>> =
-            metrics().dynamic.iter().map(|v| v.metric.clone()).collect();
-
-        for metric in metrics {
-            DYNAMIC_REGISTRY.deregister(metric)
-        }
-    }
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
         self.into_iter()
     }
