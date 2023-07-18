@@ -31,9 +31,6 @@ use std::sync::OnceLock;
 
 pub use metriken_derive::metric;
 
-#[doc(hidden)]
-pub use phf::phf_map;
-
 mod counters;
 mod gauges;
 mod heatmap;
@@ -54,12 +51,12 @@ pub(crate) use metrics::DynamicRegistry;
 pub(crate) static DYNAMIC_REGISTRY: DynamicRegistry = DynamicRegistry::new();
 
 #[doc(hidden)]
-#[linkme::distributed_slice]
-pub static STATIC_REGISTRY: [StaticEntry] = [..];
-
-#[doc(hidden)]
 pub mod __private {
     pub extern crate linkme;
+    pub use phf::phf_map;
+
+    #[linkme::distributed_slice]
+    pub static STATIC_REGISTRY: [crate::StaticEntry] = [..];
 }
 
 pub enum Format {
@@ -98,7 +95,7 @@ pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<Str
 #[rustfmt::skip]
 macro_rules! metadata {
     ($($tts:tt)*) => {
-        metriken::Metadata::new(metriken::phf_map!($($tts)*))
+        $crate::Metadata::new($crate::__private::phf_map!($($tts)*))
     };
 }
 
@@ -112,7 +109,7 @@ impl Metadata {
     }
 
     pub const fn empty() -> Self {
-        Self { map: phf_map!() }
+        Self { map: __private::phf_map!() }
     }
 }
 

@@ -173,7 +173,7 @@ pub(crate) fn metric(
         .collect();
 
     item.expr = Box::new(parse_quote! {{
-        #[#private::linkme::distributed_slice(#krate::STATIC_REGISTRY)]
+        #[#private::linkme::distributed_slice(#krate::__private::STATIC_REGISTRY)]
         #[linkme(crate = #private::linkme)]
         static __: #krate::StaticEntry = #krate::StaticEntry::new(
             &#static_name,
