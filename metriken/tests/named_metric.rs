@@ -17,17 +17,17 @@ static METRIC_WITH_DESCRIPTION: Counter = Counter::new();
 fn metric_name_as_expected() {
     let metrics = metrics().static_metrics();
     assert_eq!(metrics.len(), 2);
-    assert_eq!(metrics[1].name(), "custom-name");
-    assert_eq!(metrics[1].description(), None);
+    assert_eq!(metrics[0].name(), "custom-name");
+    assert_eq!(metrics[0].description(), None);
 }
 
 #[test]
 fn metric_name_and_description_as_expected() {
     let metrics = metrics().static_metrics();
     assert_eq!(metrics.len(), 2);
-    assert_eq!(metrics[0].name(), "custom-name-with-description");
+    assert_eq!(metrics[1].name(), "custom-name-with-description");
     assert_eq!(
-        metrics[0].description(),
+        metrics[1].description(),
         Some("some metric with a description")
     );
 }

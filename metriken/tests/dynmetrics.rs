@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use metriken::dynmetrics::MetricBuilder;
 use parking_lot::{Mutex, MutexGuard};
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
@@ -42,24 +43,10 @@ impl Drop for TestGuard {
 }
 
 #[test]
-fn register_unregister() {
-    let _guard = TestGuard::new();
-
-    let metric = Counter::new();
-    let entry = unsafe { MetricEntry::new_unchecked(&metric, "register_unregister".into()) };
-
-    dynmetrics::register(entry);
-
-    assert_eq!(metrics().dynamic_metrics().len(), 1);
-    dynmetrics::unregister(&metric);
-    assert_eq!(metrics().dynamic_metrics().len(), 0);
-}
-
-#[test]
 fn wrapped_register_unregister() {
     let _guard = TestGuard::new();
 
-    let metric = DynBoxedMetric::new(Counter::new(), "wrapped_register_unregister");
+    let metric = MetricBuilder::new("wrapped_register_unregister").build(Counter::new());
 
     assert_eq!(metrics().dynamic_metrics().len(), 1);
     drop(metric);
@@ -70,9 +57,10 @@ fn wrapped_register_unregister() {
 fn pinned_register_unregister() {
     let _guard = TestGuard::new();
 
+    let entry = MetricBuilder::new("pinned_register_unregister").into_entry();
     let mut metric_ = ManuallyDrop::new(DynPinnedMetric::new(Counter::new()));
     let metric = unsafe { Pin::new_unchecked(&*metric_) };
-    metric.register("pinned_register_unregister");
+    metric.register(entry);
 
     assert_eq!(metrics().dynamic_metrics().len(), 1);
     unsafe { ManuallyDrop::drop(&mut metric_) };
@@ -84,26 +72,13 @@ fn pinned_scope() {
     let _guard = TestGuard::new();
 
     {
+        let entry = MetricBuilder::new("pinned_scope").into_entry();
+
         let metric = DynPinnedMetric::new(Counter::new());
         let metric = unsafe { Pin::new_unchecked(&metric) };
-        metric.register("pinned_scope");
+        metric.register(entry);
 
         assert_eq!(metrics().dynamic_metrics().len(), 1);
-    }
-    assert_eq!(metrics().dynamic_metrics().len(), 0);
-}
-
-#[test]
-fn pinned_dup_register() {
-    let _guard = TestGuard::new();
-
-    {
-        let metric = DynPinnedMetric::new(Counter::new());
-        let metric = unsafe { Pin::new_unchecked(&metric) };
-        metric.register("pinned_dup_1");
-        metric.register("pinned_dup_2");
-
-        assert_eq!(metrics().dynamic_metrics().len(), 2);
     }
     assert_eq!(metrics().dynamic_metrics().len(), 0);
 }
@@ -112,8 +87,8 @@ fn pinned_dup_register() {
 fn multi_metric() {
     let _guard = TestGuard::new();
 
-    let m1 = DynBoxedMetric::new(Counter::new(), "multi_metric_1");
-    let m2 = DynBoxedMetric::new(Counter::new(), "multi_metric_2");
+    let m1 = MetricBuilder::new("multi_metric_1").build(Counter::new());
+    let m2 = MetricBuilder::new("multi_metric_2").build(Counter::new());
 
     assert_eq!(metrics().dynamic_metrics().len(), 2);
     drop(m1);

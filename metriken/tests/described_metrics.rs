@@ -15,7 +15,7 @@ fn metric_description_as_expected_when_only_description_set() {
     let metrics = metrics().static_metrics();
     assert_eq!(metrics.len(), 2);
     assert_eq!(
-        metrics[1].description(),
+        metrics[0].description(),
         Some("some metric with a description")
     );
 }
@@ -24,5 +24,5 @@ fn metric_description_as_expected_when_only_description_set() {
 fn metric_description_as_expected_when_only_description_set_to_blank() {
     let metrics = metrics().static_metrics();
     assert_eq!(metrics.len(), 2);
-    assert_eq!(metrics[0].description(), None);
+    assert_eq!(metrics[1].description(), Some(""));
 }
