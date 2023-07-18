@@ -148,13 +148,10 @@ pub(crate) fn metric(
         .map(|SingleArg { value, .. }| parse_quote!(Some(#value)))
         .unwrap_or_else(|| parse_quote!(None));
 
-    // Not fixable since we need to iterate by values while value() only allows
-    // iterating by reference.
-    #[allow(clippy::iter_kv_map)]
     let attrs: Vec<_> = metadata
         .0
-        .into_iter()
-        .map(|(_, entry)| {
+        .into_values()
+        .map(|entry| {
             let key = entry.name.to_literal();
             let value = entry.value;
 
