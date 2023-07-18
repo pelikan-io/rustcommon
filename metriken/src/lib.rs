@@ -37,6 +37,7 @@ pub use phf::phf_map;
 mod counters;
 mod gauges;
 mod heatmap;
+mod lazy;
 mod metrics;
 
 pub use crate::heatmap::Heatmap;
@@ -48,6 +49,7 @@ pub use metrics::{
     Metrics, StaticEntry, StaticMetric,
 };
 
+pub(crate) use lazy::Lazy;
 pub(crate) use metrics::DynamicRegistry;
 pub(crate) static DYNAMIC_REGISTRY: DynamicRegistry = DynamicRegistry::new();
 
