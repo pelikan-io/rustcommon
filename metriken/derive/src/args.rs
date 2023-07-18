@@ -23,15 +23,6 @@ pub(crate) enum ArgName {
     Crate(Token![crate]),
 }
 
-impl ArgName {
-    pub fn to_ident(&self) -> Ident {
-        match self {
-            Self::Ident(ident) => ident.clone(),
-            Self::Crate(krate) => Ident::new("crate", krate.span),
-        }
-    }
-}
-
 impl Parse for ArgName {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let lookahead = input.lookahead1();

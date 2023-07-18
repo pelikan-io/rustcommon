@@ -15,13 +15,13 @@
 //! ```
 //! # // This should remain in sync with the example below.
 //! use metriken::*;
-//! /// A counter metric named "<crate name>::COUNTER_A"
-//! #[metric]
-//! static COUNTER_A: Counter = Counter::new();
-//!
 //! /// A counter metric named "my.metric.name"
 //! #[metric(name = "my.metric.name")]
 //! static COUNTER_B: Counter = Counter::new();
+//!
+//! /// A counter metric named "<crate name>::COUNTER_A"
+//! #[metric]
+//! static COUNTER_A: Counter = Counter::new();
 //! #
 //! # let metrics = metrics();
 //! # // Metrics may be in any arbitrary order
@@ -29,8 +29,8 @@
 //! # names.sort();
 //! #
 //! # assert_eq!(names.len(), 2);
-//! # assert_eq!(names[0], "my.metric.name");
-//! # assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
+//! # assert_eq!(names[0], "COUNTER_A");
+//! # assert_eq!(names[1], "my.metric.name");
 //! ```
 //!
 //! # Accessing Metrics
@@ -43,13 +43,13 @@
 //! ```
 //! # // This should remain in sync with the example above.
 //! # use metriken::*;
-//! # /// A counter metric named "<crate name>::COUNTER_A"
-//! # #[metric]
-//! # static COUNTER_A: Counter = Counter::new();
-//! #
 //! # /// A counter metric named "my.metric.name"
 //! # #[metric(name = "my.metric.name")]
 //! # static COUNTER_B: Counter = Counter::new();
+//! #
+//! # /// A counter metric named "<crate name>::COUNTER_A"
+//! # #[metric]
+//! # static COUNTER_A: Counter = Counter::new();
 //! #
 //! let metrics = metrics();
 //! // Metrics may be in any arbitrary order
@@ -57,8 +57,8 @@
 //! names.sort();
 //!
 //! assert_eq!(names.len(), 2);
-//! assert_eq!(names[0], "my.metric.name");
-//! assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
+//! assert_eq!(names[0], "COUNTER_A");
+//! assert_eq!(names[1], "my.metric.name");
 //! ```
 //!
 //! # How it Works
@@ -74,16 +74,19 @@ mod counter;
 mod gauge;
 mod heatmap;
 mod lazy;
+mod metadata;
+mod null;
 
 extern crate self as metriken;
 
 pub mod dynmetrics;
 
 pub use crate::counter::Counter;
-pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric};
+pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
 pub use crate::lazy::Lazy;
+pub use crate::metadata::{Metadata, MetadataIter};
 
 pub use metriken_derive::metric;
 
@@ -95,6 +98,8 @@ pub use metriken_derive::to_lowercase;
 #[doc(hidden)]
 pub mod export {
     pub extern crate linkme;
+    pub extern crate phf;
+
     pub use clocksource::{Duration, Nanoseconds};
 
     #[linkme::distributed_slice]
@@ -104,13 +109,18 @@ pub mod export {
         metric: &'static dyn crate::Metric,
         name: &'static str,
         description: Option<&'static str>,
+        metadata: &'static phf::Map<&'static str, &'static str>,
     ) -> crate::MetricEntry {
         use std::borrow::Cow;
 
         crate::MetricEntry {
             metric: crate::MetricWrapper(metric),
             name: Cow::Borrowed(name),
-            description,
+            description: match description {
+                Some(desc) => Some(Cow::Borrowed(desc)),
+                None => None,
+            },
+            metadata: crate::Metadata::new_static(metadata),
         }
     }
 }
@@ -138,30 +148,11 @@ pub trait Metric: Send + Sync + 'static {
 pub struct MetricEntry {
     metric: MetricWrapper,
     name: Cow<'static, str>,
-    description: Option<&'static str>,
+    description: Option<Cow<'static, str>>,
+    metadata: Metadata,
 }
 
 impl MetricEntry {
-    /// Create a new metric entry with the provided metric and name.
-    pub fn new(metric: &'static dyn Metric, name: Cow<'static, str>) -> Self {
-        // SAFETY: The lifetimes here are static.
-        unsafe { Self::new_unchecked(metric, name) }
-    }
-
-    /// Create a new metric entry with the provided metric and name.
-    ///
-    /// # Safety
-    /// This method is only safe to call if
-    /// - `metric` points to a valid `dyn Metric` instance, and,
-    /// - the metric instance outlives this `MetricEntry`.
-    pub unsafe fn new_unchecked(metric: *const dyn Metric, name: Cow<'static, str>) -> Self {
-        Self {
-            metric: MetricWrapper(metric),
-            name,
-            description: None,
-        }
-    }
-
     /// Get a reference to the metric that this entry corresponds to.
     pub fn metric(&self) -> &dyn Metric {
         unsafe { &*self.metric.0 }
@@ -174,7 +165,11 @@ impl MetricEntry {
 
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
-        self.description
+        self.description.as_deref()
+    }
+
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 }
 

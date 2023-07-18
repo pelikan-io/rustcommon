@@ -8,15 +8,55 @@
 //! Generally users should not need to use anything in this module with the
 //! exception of [`DynPinnedMetric`] and [`DynBoxedMetric`].
 
-use std::borrow::Cow;
 use std::marker::PhantomPinned;
 use std::ops::Deref;
 use std::pin::Pin;
+use std::{borrow::Cow, collections::HashMap};
 
-use crate::{Metric, MetricEntry};
+use crate::null::NullMetric;
+use crate::{Metadata, Metric, MetricEntry, MetricWrapper};
 
 // We use parking_lot here since it avoids lock poisioning
 use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
+
+pub struct MetricBuilder {
+    name: Cow<'static, str>,
+    desc: Option<Cow<'static, str>>,
+    metadata: HashMap<String, String>,
+}
+
+impl MetricBuilder {
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            name: name.into(),
+            desc: None,
+            metadata: HashMap::new(),
+        }
+    }
+
+    pub fn description(mut self, desc: impl Into<Cow<'static, str>>) -> Self {
+        self.desc = Some(desc.into());
+        self
+    }
+
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn into_entry(self) -> MetricEntry {
+        MetricEntry {
+            metric: MetricWrapper(&NullMetric),
+            name: self.name,
+            description: self.desc,
+            metadata: Metadata::new(self.metadata),
+        }
+    }
+
+    pub fn build<T: Metric>(self, metric: T) -> DynBoxedMetric<T> {
+        DynBoxedMetric::new(metric, self.into_entry())
+    }
+}
 
 pub(crate) struct DynMetricsRegistry {
     metrics: Vec<MetricEntry>,
@@ -83,14 +123,9 @@ pub fn unregister(metric: *const dyn Metric) {
 /// # Example
 /// ```
 /// # use metriken::*;
-/// # use std::pin::Pin;
-/// let my_dyn_metric = DynPinnedMetric::new(Counter::new());
-/// // Normally you would use some utility to do this. (e.g. pin-utils)
-/// let my_dyn_metric = unsafe { Pin::new_unchecked(&my_dyn_metric) };
-/// my_dyn_metric.register("a.dynamic.counter");
-///
-/// let metrics = metrics();
-/// assert_eq!(metrics.dynamic_metrics()[0].name(), "a.dynamic.counter");
+/// let entry = MetricBuilder::new("a.dynamic.counter").into_entry();
+/// let metric = std::pin::pin!(DynPinnedMetric::new(Counter::new()));
+/// metric.as_ref().register(entry);
 /// ```
 ///
 /// [`register`]: crate::dynmetrics::DynPinnedMetric::register
@@ -118,23 +153,14 @@ impl<M: Metric> DynPinnedMetric<M> {
     ///
     /// Calling this multiple times will result in the same metric being
     /// registered multiple times under potentially different names.
-    pub fn register(self: Pin<&Self>, name: impl Into<Cow<'static, str>>) {
+    pub fn register(self: Pin<&Self>, mut entry: MetricEntry) {
         // SAFETY:
-        // To prove that this is safe we need to list out a few guarantees/requirements:
-        //  - Pin ensures that the memory of this struct instance will not be reused
-        //    until the drop call completes.
-        //  - MetricEntry::new_unchecked requires that the metric reference outlive
-        //    created the MetricEntry instance.
-        //
-        // Finally, register will keep the MetricEntry instance in a global list until
-        // the corresponding unregister call is made.
-        //
-        // Taking all of these together, we can guarantee that self.metric will not be
-        // dropped until this instance of DynPinnedMetric is dropped itself. At that
-        // point, drop calls unregister which will drop the MetricEntry instance. This
-        // ensures that the references to self.metric in REGISTRY will always be valid
-        // and that this method is safe.
-        unsafe { register(MetricEntry::new_unchecked(&self.metric, name.into())) };
+        // Pin guarantees that self will not be moved until the destructor is called
+        // so the pointer we store in entry.metric will remain alive until self is
+        // dropped. In drop we unregister it so this is safe.
+        entry.metric = MetricWrapper(&self.metric);
+
+        register(entry);
     }
 }
 
@@ -164,10 +190,7 @@ impl<M: Metric> Deref for DynPinnedMetric<M> {
 /// # Example
 /// ```
 /// # use metriken::*;
-/// let my_gauge = DynBoxedMetric::new(Gauge::new(), "my.dynamic.gauge");
-///
-/// let metrics = metrics();
-/// assert_eq!(metrics.dynamic_metrics()[0].name(), "my.dynamic.gauge");
+/// let gauge = MetricBuilder::new("my.dynamic.guage").build(Gauge::new());
 /// ```
 pub struct DynBoxedMetric<M: Metric> {
     metric: Pin<Box<DynPinnedMetric<M>>>,
@@ -176,14 +199,14 @@ pub struct DynBoxedMetric<M: Metric> {
 impl<M: Metric> DynBoxedMetric<M> {
     /// Create a new dynamic metric using the provided metric type with the
     /// provided `name`.
-    pub fn new(metric: M, name: impl Into<Cow<'static, str>>) -> Self {
+    pub fn new(metric: M, entry: MetricEntry) -> Self {
         let this = Self::unregistered(metric);
-        this.register(name.into());
+        this.register(entry);
         this
     }
 
     /// Create a new dynamic metric without registering it.
-    pub fn unregistered(metric: M) -> Self {
+    fn unregistered(metric: M) -> Self {
         Self {
             metric: Box::pin(DynPinnedMetric::new(metric)),
         }
@@ -193,8 +216,8 @@ impl<M: Metric> DynBoxedMetric<M> {
     ///
     /// Calling this multiple times will result in the same metric being
     /// registered multiple times under potentially different names.
-    pub fn register(&self, name: impl Into<Cow<'static, str>>) {
-        self.metric.as_ref().register(name.into())
+    fn register(&self, entry: MetricEntry) {
+        self.metric.as_ref().register(entry)
     }
 }
 
