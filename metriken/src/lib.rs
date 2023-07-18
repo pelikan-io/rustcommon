@@ -63,6 +63,12 @@ pub trait Metric: Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
+impl<T: Send + Sync> Metric for &'static T {
+    fn as_any(&self) -> &(dyn std::any::Any + 'static) {
+        self
+    }
+}
+
 pub enum Format {
     Plain,
     Prometheus,

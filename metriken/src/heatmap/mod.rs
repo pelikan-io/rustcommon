@@ -100,9 +100,3 @@ impl Metric for Heatmap {
         self
     }
 }
-
-impl Metric for &'static Heatmap {
-    fn as_any(&self) -> &(dyn std::any::Any + 'static) {
-        self
-    }
-}

@@ -15,12 +15,6 @@ impl Metric for Counter {
     }
 }
 
-impl Metric for &'static Counter {
-    fn as_any(&self) -> &(dyn std::any::Any + 'static) {
-        self
-    }
-}
-
 impl Counter {
     /// Initialize a new counter with an initial count of zero.
     pub const fn new() -> Self {
