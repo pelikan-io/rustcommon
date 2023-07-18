@@ -2,10 +2,11 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
+use quote::ToTokens;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
-use crate::args::{ArgName, Metadata, MetadataEntry, MetadataName, SingleArg, SingleArgExt};
+use crate::args::{ArgName, Metadata, MetadataEntry, SingleArg, SingleArgExt};
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::FoundCrate;
 use quote::quote;
@@ -111,23 +112,6 @@ impl MetadataMap {
 
         Ok(())
     }
-
-    fn insert_arg(&mut self, arg: SingleArg<Expr>) -> syn::Result<()> {
-        let entry = MetadataEntry {
-            name: MetadataName::Ident(arg.ident.to_ident()),
-            eq: arg.eq,
-            value: arg.value,
-        };
-
-        let name = entry.name.value();
-
-        self.insert(entry).map_err(|e| {
-            syn::Error::new(
-                e.span(),
-                format_args!("`{name}` also specified as part of the metadata"),
-            )
-        })
-    }
 }
 
 pub(crate) fn metric(
@@ -150,13 +134,20 @@ pub(crate) fn metric(
         }
     }
 
-    if let Some(name) = args.name {
-        metadata.insert_arg(name)?;
-    }
+    let name: TokenStream = match args.name {
+        Some(ref name) => name.value.to_token_stream(),
+        None => {
+            let item_name = &item.ident;
+            quote! { concat!(module_path!(), "::", stringify!(#item_name)) }
+        }
+    };
 
-    if let Some(description) = args.description {
-        metadata.insert_arg(description)?;
-    }
+    let description: TokenStream = match args.description {
+        Some(ref description) => description.value.clone().to_token_stream(),
+        None => {
+            quote!("")
+        }
+    };
 
     let formatter = args
         .formatter
@@ -177,6 +168,8 @@ pub(crate) fn metric(
         #[linkme(crate = #private::linkme)]
         static __: #krate::StaticEntry = #krate::StaticEntry::new(
             &#static_name,
+            #name,
+            #description,
             #krate::metadata!(#( #attrs ),*),
             #formatter
         );

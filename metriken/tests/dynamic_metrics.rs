@@ -139,9 +139,9 @@ fn format() {
     let metrics = metrics();
     let entry = metrics.iter().next().unwrap();
 
-    assert_eq!(entry.format(Format::Plain), Some("counter".to_string()));
+    assert_eq!(entry.format(Format::Plain), "counter".to_string());
     assert_eq!(
         entry.format(Format::Prometheus),
-        Some("counter{key=\"value\"}".to_string())
+        "counter{key=\"value\"}".to_string()
     );
 }

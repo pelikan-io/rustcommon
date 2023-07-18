@@ -22,16 +22,16 @@ pub static GAUGE_WITH_FORMATTER: Gauge = Gauge::new();
 #[metric(name = "gauge_name", description = "description", formatter = &custom_formatter, metadata = { key = "value" })]
 pub static GAUGE_WITH_FORMATTER_AND_METADATA: Gauge = Gauge::new();
 
-pub fn custom_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {
+pub fn custom_formatter(metric: &dyn MetricEntry, format: Format) -> String {
     match format {
-        Format::Plain => metric.name().map(|v| {
+        Format::Plain => {
             format!(
                 "{}/{}/{}",
-                v,
+                metric.name(),
                 "key",
                 metric.get_label("key").unwrap_or("unknown")
             )
-        }),
+        }
         format => metriken::default_formatter(metric, format),
     }
 }
@@ -67,8 +67,8 @@ fn main() {
     assert_eq!(metrics().iter().count(), NAMES.len());
 
     for (idx, metric) in metrics().iter().enumerate() {
-        assert_eq!(metric.name().unwrap(), NAMES[idx]);
+        assert_eq!(metric.name(), NAMES[idx]);
         assert_eq!(metric.description(), DESCRIPTION[idx]);
-        assert_eq!(metric.format(Format::Plain).unwrap(), PLAIN[idx]);
+        assert_eq!(metric.format(Format::Plain), PLAIN[idx]);
     }
 }

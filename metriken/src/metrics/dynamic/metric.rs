@@ -15,7 +15,9 @@ impl<T: Metric> Deref for DynamicMetric<T> {
 pub struct DynamicMetricBuilder<T> {
     metric: T,
     metadata: HashMap<String, String>,
-    formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> Option<String> + Sync),
+    name: String,
+    description: Option<String>,
+    formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> String + Sync),
 }
 
 impl<M: Metric> DynamicMetricBuilder<M> {
@@ -25,6 +27,8 @@ impl<M: Metric> DynamicMetricBuilder<M> {
         let entry = DynamicEntry {
             metric: metric.clone(),
             metadata: self.metadata,
+            name: self.name,
+            description: self.description,
             formatter: self.formatter,
         };
 
@@ -44,7 +48,7 @@ impl<M: Metric> DynamicMetricBuilder<M> {
 
     pub fn formatter(
         mut self,
-        formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> Option<String> + Sync),
+        formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> String + Sync),
     ) -> Self {
         self.formatter = formatter;
         self
@@ -53,12 +57,13 @@ impl<M: Metric> DynamicMetricBuilder<M> {
 
 impl<M: Metric> DynamicMetric<M> {
     pub fn builder<T: ToString>(metric: M, name: T) -> DynamicMetricBuilder<M> {
-        let metadata: HashMap<String, String> =
-            HashMap::from([("name".to_string(), name.to_string())]);
+        let metadata: HashMap<String, String> = HashMap::new();
 
         DynamicMetricBuilder {
             metric,
             metadata,
+            name: name.to_string(),
+            description: None,
             formatter: &default_formatter,
         }
     }

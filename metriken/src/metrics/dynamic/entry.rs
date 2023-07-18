@@ -2,8 +2,10 @@ use crate::*;
 
 pub struct DynamicEntry {
     pub(crate) metric: Arc<dyn Metric>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
     pub(crate) metadata: HashMap<String, String>,
-    pub(crate) formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> Option<String> + Sync),
+    pub(crate) formatter: &'static (dyn Fn(&dyn MetricEntry, Format) -> String + Sync),
 }
 
 impl std::cmp::PartialEq for DynamicEntry {
@@ -34,6 +36,14 @@ impl MetricEntry for DynamicEntry {
         self.metadata.get(label).map(|v| v.as_str())
     }
 
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
     fn metadata(&self) -> HashMap<&str, &str> {
         let mut ret = HashMap::new();
         for (key, value) in &self.metadata {
@@ -42,7 +52,7 @@ impl MetricEntry for DynamicEntry {
         ret
     }
 
-    fn format(&self, format: Format) -> std::option::Option<std::string::String> {
+    fn format(&self, format: Format) -> std::string::String {
         (self.formatter)(self, format)
     }
 }

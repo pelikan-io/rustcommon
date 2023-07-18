@@ -80,11 +80,11 @@ pub fn metrics() -> Metrics {
     }
 }
 
-pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<String> {
+pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> String {
     match format {
         Format::Plain => {
             // the default format is to just return the metric name
-            metric.name().map(|name| name.to_string())
+            metric.name().to_string()
         }
         Format::Prometheus => {
             // prometheus format is the name followed by each metadata entry
@@ -96,7 +96,7 @@ pub fn default_formatter(metric: &dyn MetricEntry, format: Format) -> Option<Str
                 .map(|(k, v)| format!("{k}=\"{v}\""))
                 .collect::<Vec<_>>()
                 .join(",");
-            metric.name().map(|name| format!("{name}{{{metadata}}}"))
+            format!("{}{{{metadata}}}", metric.name())
         }
     }
 }

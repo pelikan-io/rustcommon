@@ -9,19 +9,15 @@ pub use dynamic::*;
 pub use r#static::*;
 
 pub trait MetricEntry: Deref<Target = dyn Metric> {
-    fn name(&self) -> Option<&str> {
-        self.get_label("name")
-    }
+    fn name(&self) -> &str;
 
-    fn description(&self) -> Option<&str> {
-        self.get_label("description")
-    }
+    fn description(&self) -> Option<&str>;
 
     fn get_label(&self, label: &str) -> Option<&str>;
 
     fn metadata(&self) -> HashMap<&str, &str>;
 
-    fn format(&self, format: Format) -> Option<String>;
+    fn format(&self, format: Format) -> String;
 }
 
 pub struct Metrics {
