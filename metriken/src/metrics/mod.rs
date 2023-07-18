@@ -1,4 +1,6 @@
+// use std::collections::btree_set::Iter;
 use crate::*;
+use std::collections::BTreeSet;
 
 mod dynamic;
 mod r#static;
@@ -23,7 +25,7 @@ pub trait MetricEntry: Deref<Target = dyn Metric> {
 }
 
 pub struct Metrics {
-    pub(crate) dynamic: RwLockReadGuard<'static, Vec<DynamicEntry>>,
+    pub(crate) dynamic: RwLockReadGuard<'static, BTreeSet<DynamicEntry>>,
 }
 
 impl Metrics {
@@ -46,31 +48,32 @@ impl<'a> IntoIterator for &'a Metrics {
     type IntoIter = MetricIterator<'a>;
     fn into_iter(self) -> <Self as std::iter::IntoIterator>::IntoIter {
         MetricIterator {
-            dynamic_index: 0,
-            static_index: 0,
-            metrics: self,
+            dynamic_iter: Some(self.dynamic.iter()),
+            static_iter: __private::STATIC_REGISTRY.iter(),
         }
     }
 }
 
 pub struct MetricIterator<'a> {
-    dynamic_index: usize,
-    static_index: usize,
-    metrics: &'a Metrics,
+    dynamic_iter: Option<std::collections::btree_set::Iter<'a, DynamicEntry>>,
+    static_iter: core::slice::Iter<'a, StaticEntry>,
 }
 
 impl<'a> Iterator for MetricIterator<'a> {
     type Item = &'a dyn MetricEntry;
 
     fn next(&mut self) -> Option<<Self as Iterator>::Item> {
-        if self.dynamic_index < self.metrics.dynamic.len() {
-            let idx = self.dynamic_index;
-            self.dynamic_index += 1;
-            self.metrics.dynamic.get(idx).map(|v| v as _)
-        } else {
-            let idx = self.static_index;
-            self.static_index += 1;
-            __private::STATIC_REGISTRY.get(idx).map(|v| v as _)
+        if let Some(ref mut iter) = &mut self.dynamic_iter {
+            match iter.next() {
+                Some(v) => {
+                    return Some(v as _);
+                }
+                None => {
+                    self.dynamic_iter = None;
+                }
+            }
         }
+
+        self.static_iter.next().map(|v| v as _)
     }
 }

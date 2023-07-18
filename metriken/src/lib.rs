@@ -42,8 +42,8 @@ pub use counters::{Counter, LazyCounter};
 pub use gauges::{Gauge, LazyGauge};
 
 pub use metrics::{
-    DynamicEntry, DynamicMetric, DynamicMetricBuilder, MetricEntry, MetricIterator,
-    Metrics, StaticEntry, StaticMetric,
+    DynamicEntry, DynamicMetric, DynamicMetricBuilder, MetricEntry, MetricIterator, Metrics,
+    StaticEntry, StaticMetric,
 };
 
 pub(crate) use lazy::Lazy;
@@ -119,7 +119,9 @@ impl Metadata {
     }
 
     pub const fn empty() -> Self {
-        Self { map: __private::phf_map!() }
+        Self {
+            map: __private::phf_map!(),
+        }
     }
 }
 
@@ -136,5 +138,3 @@ impl Metadata {
         self.map.get(label).copied()
     }
 }
-
-

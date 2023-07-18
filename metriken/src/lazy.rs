@@ -8,11 +8,11 @@ impl<T: Default> Lazy<T> {
         Self(OnceLock::new())
     }
 
-    pub fn get(this: &Self) -> Option<&T> { 
+    pub fn get(this: &Self) -> Option<&T> {
         this.0.get()
     }
 
-    pub fn force(this: &Self) -> &T { 
+    pub fn force(this: &Self) -> &T {
         this.0.get_or_init(T::default)
     }
 }
