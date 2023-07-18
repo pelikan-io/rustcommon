@@ -129,6 +129,30 @@ pub mod export {
     }
 }
 
+/// A counter holds a unsigned 64bit monotonically non-decreasing value. The
+/// counter behavior is to wrap on overflow.
+///
+/// Common examples are the number of operations (requests, reads, ...) or
+/// errors.
+///
+/// Unlike a standard `Counter`, a `LazyCounter` will not report a value unless
+/// it has been initialized by writing to at least once. This is useful for when
+/// you want to declare metrics statically, but only report metrics that are
+/// being used.
+pub type LazyCounter = Lazy<Counter>;
+
+/// A gauge holds a signed 64-bit value and is used to represent metrics which
+/// may increase or decrease in value. The behavior is to wrap around on
+/// overflow and underflow.
+///
+/// Common examples are queue depths, temperatures, and usage metrics.
+///
+/// Unlike a standard `Gauge`, a `LazyGauge` will not report a value unless it
+/// has been initialized by writing to at least once. This is useful for when
+/// you want to declare metrics statically, but only report metrics that are
+/// being used.
+pub type LazyGauge = Lazy<Gauge>;
+
 /// Global interface to a metric.
 ///
 /// Most use of metrics should use the directly declared constants.
