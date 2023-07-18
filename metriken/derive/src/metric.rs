@@ -164,9 +164,7 @@ pub(crate) fn metric(
         .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
 
     let attrs: Vec<_> = metadata
-        .0
-        .into_iter()
-        .map(|(_, entry)| {
+        .0.into_values().map(|entry| {
             let key = entry.name.to_literal();
             let value = entry.value;
 
