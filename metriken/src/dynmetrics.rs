@@ -8,10 +8,11 @@
 //! Generally users should not need to use anything in this module with the
 //! exception of [`DynPinnedMetric`] and [`DynBoxedMetric`].
 
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::marker::PhantomPinned;
 use std::ops::Deref;
 use std::pin::Pin;
-use std::{borrow::Cow, collections::HashMap};
 
 use crate::null::NullMetric;
 use crate::{Metadata, Metric, MetricEntry, MetricWrapper};

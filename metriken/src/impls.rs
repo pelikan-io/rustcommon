@@ -1,5 +1,5 @@
 //! Various impls for [`Metric`].
-//! 
+//!
 //! This way they avoid cluttering up lib.rs.
 
 use std::any::Any;
