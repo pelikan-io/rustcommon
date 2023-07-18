@@ -6,6 +6,8 @@ mod bonus {
     pub use metriken::*;
 }
 
+mod metriken {}
+
 use bonus::Counter;
 
 #[bonus::metric(name = "test", description = "foobar", crate = crate::bonus)]

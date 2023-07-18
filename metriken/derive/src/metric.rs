@@ -5,7 +5,7 @@
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 
-use crate::args::{ArgName, Metadata, MetadataEntry, MetadataName, SingleArg, SingleArgExt};
+use crate::args::{ArgName, Metadata, MetadataEntry, SingleArg, SingleArgExt};
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::FoundCrate;
 use quote::quote;
@@ -111,23 +111,6 @@ impl MetadataMap {
 
         Ok(())
     }
-
-    fn insert_arg(&mut self, arg: SingleArg<Expr>) -> syn::Result<()> {
-        let entry = MetadataEntry {
-            name: MetadataName::Ident(arg.ident.to_ident()),
-            eq: arg.eq,
-            value: arg.value,
-        };
-
-        let name = entry.name.value();
-
-        self.insert(entry).map_err(|e| {
-            syn::Error::new(
-                e.span(),
-                format_args!("`{name}` also specified as part of the metadata"),
-            )
-        })
-    }
 }
 
 pub(crate) fn metric(
@@ -150,13 +133,15 @@ pub(crate) fn metric(
         }
     }
 
-    if let Some(name) = args.name {
-        metadata.insert_arg(name)?;
-    }
+    let name: syn::Expr = args.name.map(|name| name.value).unwrap_or_else(|| {
+        let name = syn::LitStr::new(&static_name.to_string(), static_name.span());
+        parse_quote!(#name)
+    });
 
-    if let Some(description) = args.description {
-        metadata.insert_arg(description)?;
-    }
+    let description: syn::Expr = args
+        .description
+        .map(|SingleArg { value, .. }| parse_quote!(Some(#value)))
+        .unwrap_or_else(|| parse_quote!(None));
 
     let formatter = args
         .formatter
@@ -175,12 +160,12 @@ pub(crate) fn metric(
         .collect();
 
     item.expr = Box::new(parse_quote! {{
-        #[#private::linkme::distributed_slice(#krate::STATIC_REGISTRY)]
+        #[#private::linkme::distributed_slice(#private::METRICS)]
         #[linkme(crate = #private::linkme)]
-        static __: #krate::StaticEntry = #krate::StaticEntry::new(
+        static __: #krate::MetricEntry = #private::entry(
             &#static_name,
-            #krate::metadata!(#( #attrs ),*),
-            #formatter
+            #name,
+            #description,
         );
 
         #static_expr
