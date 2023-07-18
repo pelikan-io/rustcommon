@@ -199,7 +199,10 @@ impl<T> SingleArgExt for Option<SingleArg<T>> {
 
     fn insert_or_duplicate(&mut self, arg: SingleArg<Self::Inner>) -> syn::Result<()> {
         match self {
-            None => Ok(*self = Some(arg)),
+            None => {
+                *self = Some(arg);
+                Ok(())
+            },
             Some(_) => Err(syn::Error::new_spanned(
                 arg.ident.clone(),
                 format_args!("unexpected duplicate argument `{}`", arg.ident),
