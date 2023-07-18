@@ -96,7 +96,7 @@ pub use metriken_derive::metric;
 
 #[doc(hidden)]
 pub mod export {
-    use crate::{Metric, MetricEntry};
+    use crate::{Metric, MetricEntry, FormatFn};
 
     pub extern crate linkme;
     pub extern crate phf;
@@ -115,6 +115,7 @@ pub mod export {
         name: &'static str,
         description: Option<&'static str>,
         metadata: &'static phf::Map<&'static str, &'static str>,
+        formatter: Option<FormatFn>,
     ) -> MetricEntry {
         use std::borrow::Cow;
 
@@ -126,9 +127,18 @@ pub mod export {
                 None => None,
             },
             metadata: crate::Metadata::new_static(metadata),
+            formatter,
         }
     }
 }
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Format {
+    Plain,
+    Prometheus,
+}
+
+pub type FormatFn = fn(&MetricEntry, Format) -> String;
 
 /// A counter holds a unsigned 64bit monotonically non-decreasing value. The
 /// counter behavior is to wrap on overflow.
@@ -179,6 +189,7 @@ pub struct MetricEntry {
     name: Cow<'static, str>,
     description: Option<Cow<'static, str>>,
     metadata: Metadata,
+    formatter: Option<FormatFn>,
 }
 
 impl MetricEntry {
@@ -195,6 +206,10 @@ impl MetricEntry {
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    pub fn formatter(&self) -> Option<FormatFn> {
+        self.formatter
     }
 
     pub fn metadata(&self) -> &Metadata {
