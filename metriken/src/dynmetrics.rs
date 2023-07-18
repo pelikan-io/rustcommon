@@ -51,7 +51,7 @@ pub(crate) fn get_registry() -> RwLockReadGuard<'static, DynMetricsRegistry> {
 }
 
 /// Builder for creating a dynamic metric.
-/// 
+///
 /// This can be used to directly create a [`DynBoxedMetric`] or you can convert
 /// this builder into a [`MetricEntry`] for more advanced use cases.
 pub struct MetricBuilder {
