@@ -25,11 +25,6 @@ impl DynamicRegistry {
         });
     }
 
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
-        self.metrics.read().len()
-    }
-
     pub(crate) fn read(&self) -> RwLockReadGuard<Vec<DynamicEntry>> {
         self.metrics.read()
     }

@@ -6,10 +6,6 @@ mod r#static;
 pub use dynamic::*;
 pub use r#static::*;
 
-pub trait Metric: Send + Sync + 'static {
-    fn as_any(&self) -> &dyn Any;
-}
-
 pub trait MetricEntry: Deref<Target = dyn Metric> {
     fn name(&self) -> Option<&str> {
         self.get_label("name")
@@ -33,6 +29,14 @@ pub struct Metrics {
 impl Metrics {
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
         self.into_iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.dynamic.len() + crate::__private::STATIC_REGISTRY.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
