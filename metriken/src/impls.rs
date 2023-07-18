@@ -19,21 +19,21 @@ impl<T: Metric> Metric for &'static T {
 
 impl<T: Metric> Metric for Box<T> {
     fn is_enabled(&self) -> bool {
-        <T as Metric>::is_enabled(&self)
+        <T as Metric>::is_enabled(self)
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
-        <T as Metric>::as_any(&self)
+        <T as Metric>::as_any(self)
     }
 }
 
 impl<T: Metric> Metric for Arc<T> {
     fn is_enabled(&self) -> bool {
-        <T as Metric>::is_enabled(&self)
+        <T as Metric>::is_enabled(self)
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
-        <T as Metric>::as_any(&self)
+        <T as Metric>::as_any(self)
     }
 }
 
