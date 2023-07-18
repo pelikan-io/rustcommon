@@ -76,6 +76,7 @@ use crate::export::MetricWrapper;
 mod counter;
 mod gauge;
 mod heatmap;
+mod impls;
 mod lazy;
 mod metadata;
 mod null;
@@ -170,16 +171,6 @@ pub trait Metric: Send + Sync + 'static {
     ///
     /// [`Any`]: std::any::Any
     fn as_any(&self) -> Option<&dyn Any>;
-}
-
-impl<T: Metric> Metric for &'static T {
-    fn is_enabled(&self) -> bool {
-        <T as Metric>::is_enabled(self)
-    }
-
-    fn as_any(&self) -> Option<&dyn Any> {
-        <T as Metric>::as_any(self)
-    }
 }
 
 /// A statically declared metric entry.
