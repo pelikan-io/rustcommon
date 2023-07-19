@@ -150,8 +150,8 @@ pub(crate) fn metric(
 
     let attrs: Vec<_> = metadata
         .0
-        .into_iter()
-        .map(|(_, entry)| {
+        .into_values()
+        .map(|entry| {
             let key = entry.name.to_literal();
             let value = entry.value;
 
