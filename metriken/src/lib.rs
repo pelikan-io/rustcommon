@@ -89,6 +89,7 @@ mod counter;
 mod gauge;
 mod heatmap;
 mod lazy;
+mod metadata;
 mod null;
 
 extern crate self as metriken;
@@ -100,6 +101,7 @@ pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
 pub use crate::lazy::{Lazy, Relaxed};
+pub use crate::metadata::{Metadata, MetadataIter};
 
 pub use metriken_derive::metric;
 
@@ -113,8 +115,14 @@ pub mod export {
     pub extern crate linkme;
     pub use clocksource::{Duration, Nanoseconds};
 
+    use crate::Metadata;
+
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];
+
+    pub const fn metadata(map: &'static phf::Map<&'static str, &'static str>) -> Metadata {
+        Metadata::new_static(map)
+    }
 }
 
 #[macro_export]
@@ -220,6 +228,7 @@ pub struct MetricEntry {
     name: Cow<'static, str>,
     namespace: Option<&'static str>,
     description: Option<Cow<'static, str>>,
+    metadata: Metadata,
 }
 
 impl MetricEntry {
@@ -248,27 +257,7 @@ impl MetricEntry {
                 Some(desc) => Some(Cow::Borrowed(desc)),
                 None => None,
             },
-        }
-    }
-
-    /// Create a new metric entry with the provided metric and name.
-    pub fn new(metric: &'static dyn Metric, name: Cow<'static, str>) -> Self {
-        // SAFETY: The lifetimes here are static.
-        unsafe { Self::new_unchecked(metric, name) }
-    }
-
-    /// Create a new metric entry with the provided metric and name.
-    ///
-    /// # Safety
-    /// This method is only safe to call if
-    /// - `metric` points to a valid `dyn Metric` instance, and,
-    /// - the metric instance outlives this `MetricEntry`.
-    pub unsafe fn new_unchecked(metric: *const dyn Metric, name: Cow<'static, str>) -> Self {
-        Self {
-            metric: MetricWrapper(metric),
-            name,
-            namespace: None,
-            description: None,
+            metadata: Metadata::default_const(),
         }
     }
 
@@ -290,6 +279,11 @@ impl MetricEntry {
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
+    }
+
+    /// Access the [`Metadata`] associated with this metrics entry.
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 }
 

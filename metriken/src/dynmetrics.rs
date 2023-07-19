@@ -9,12 +9,13 @@
 //! exception of [`DynPinnedMetric`] and [`DynBoxedMetric`].
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::marker::PhantomPinned;
 use std::ops::Deref;
 use std::pin::Pin;
 
 use crate::null::NullMetric;
-use crate::{Metric, MetricEntry, MetricWrapper};
+use crate::{Metadata, Metric, MetricEntry, MetricWrapper};
 
 // We use parking_lot here since it avoids lock poisioning
 use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
@@ -57,6 +58,7 @@ pub(crate) fn get_registry() -> RwLockReadGuard<'static, DynMetricsRegistry> {
 pub struct MetricBuilder {
     name: Cow<'static, str>,
     desc: Option<Cow<'static, str>>,
+    metadata: HashMap<String, String>,
 }
 
 impl MetricBuilder {
@@ -65,12 +67,19 @@ impl MetricBuilder {
         Self {
             name: name.into(),
             desc: None,
+            metadata: HashMap::new(),
         }
     }
 
     /// Add a description of this metric.
     pub fn description(mut self, desc: impl Into<Cow<'static, str>>) -> Self {
         self.desc = Some(desc.into());
+        self
+    }
+
+    /// Add a new key-value metadata entry.
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
         self
     }
 
@@ -81,6 +90,7 @@ impl MetricBuilder {
             name: self.name,
             namespace: None,
             description: self.desc,
+            metadata: Metadata::new(self.metadata),
         }
     }
 
