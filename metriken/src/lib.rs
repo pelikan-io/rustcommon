@@ -69,6 +69,8 @@
 use std::any::Any;
 use std::borrow::Cow;
 
+use crate::export::MetricWrapper;
+
 /// A helper macro for marking imports as being used.
 ///
 /// This is meant to be used for when a reference is made to an item from a doc
@@ -116,7 +118,12 @@ pub mod export {
     pub extern crate linkme;
     pub extern crate phf;
 
-    use crate::Metadata;
+    use crate::{Metadata, Metric};
+
+    /// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
+    /// is fine. This wrapper is a work around to allow us to use const constructors
+    /// for the MetricEntry struct.
+    pub struct MetricWrapper(pub *const dyn Metric);
 
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];
@@ -130,7 +137,7 @@ pub mod export {
         use std::borrow::Cow;
 
         crate::MetricEntry {
-            metric: crate::MetricWrapper(metric),
+            metric: MetricWrapper(metric),
             name: Cow::Borrowed(name),
             description: match description {
                 Some(desc) => Some(Cow::Borrowed(desc)),
@@ -225,9 +232,3 @@ impl std::fmt::Debug for MetricEntry {
             .finish()
     }
 }
-
-/// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
-/// is fine. This wrapper is a work around to allow us to use const constructors
-/// for the MetricEntry struct.
-#[doc(hidden)]
-pub struct MetricWrapper(pub *const dyn Metric);
