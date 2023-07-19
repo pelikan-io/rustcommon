@@ -110,9 +110,6 @@ pub use metriken_derive::metric;
 
 pub extern crate clocksource as time;
 
-#[doc(hidden)]
-pub use metriken_derive::to_lowercase;
-
 /// A counter holds a unsigned 64bit monotonically non-decreasing value. The
 /// counter behavior is to wrap on overflow.
 ///
