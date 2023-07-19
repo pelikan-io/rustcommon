@@ -1,4 +1,4 @@
-use crate::Metric;
+use crate::{Metric, Value};
 
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -101,5 +101,9 @@ impl Heatmap {
 impl Metric for Heatmap {
     fn as_any(&self) -> Option<&dyn std::any::Any> {
         Some(self)
+    }
+
+    fn value(&self) -> Option<Value> {
+        Some(Value::Heatmap(self))
     }
 }

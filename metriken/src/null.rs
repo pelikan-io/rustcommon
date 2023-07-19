@@ -12,4 +12,8 @@ impl Metric for NullMetric {
     fn as_any(&self) -> Option<&dyn std::any::Any> {
         None
     }
+
+    fn value(&self) -> Option<crate::Value> {
+        None
+    }
 }
