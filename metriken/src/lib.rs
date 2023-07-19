@@ -108,8 +108,6 @@ pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};
 
 pub use metriken_derive::metric;
 
-pub extern crate clocksource as time;
-
 /// A counter holds a unsigned 64bit monotonically non-decreasing value. The
 /// counter behavior is to wrap on overflow.
 ///
