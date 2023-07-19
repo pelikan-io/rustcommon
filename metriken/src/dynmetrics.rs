@@ -238,7 +238,7 @@ impl<M: Metric> Deref for DynPinnedMetric<M> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.storage.metric()
+        self.storage.metric()
     }
 }
 

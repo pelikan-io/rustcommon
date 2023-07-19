@@ -111,7 +111,7 @@ impl<'a> Iterator for MetricsIter<'a> {
         Self: Sized,
         F: FnMut(B, Self::Item) -> B,
     {
-        let init = self.sm.fold(init, |acc, item| f(acc, item));
+        let init = self.sm.fold(init, &mut f);
         self.dm.fold(init, f)
     }
 }
@@ -131,7 +131,7 @@ impl<'a> DoubleEndedIterator for MetricsIter<'a> {
         Self: Sized,
         F: FnMut(B, Self::Item) -> B,
     {
-        let init = self.dm.rfold(init, |acc, item| f(acc, item));
+        let init = self.dm.rfold(init, &mut f);
         self.sm.rfold(init, f)
     }
 }
