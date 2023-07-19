@@ -100,7 +100,7 @@ pub use crate::counter::Counter;
 pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
-pub use crate::lazy::{Lazy, Relaxed};
+pub use crate::lazy::Lazy;
 pub use crate::metadata::{Metadata, MetadataIter};
 
 pub use metriken_derive::metric;
