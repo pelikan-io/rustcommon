@@ -118,7 +118,7 @@ pub(crate) fn metric(
     item_: proc_macro::TokenStream,
 ) -> syn::Result<TokenStream> {
     let mut item: ItemStatic = syn::parse(item_)?;
-    let args: MetricArgs = syn::parse(attr_)?;
+    let mut args: MetricArgs = syn::parse(attr_)?;
 
     let krate = args.crate_path();
 
@@ -143,7 +143,7 @@ pub(crate) fn metric(
         .map(|SingleArg { value, .. }| parse_quote!(Some(#value)))
         .unwrap_or_else(|| parse_quote!(None));
 
-    let formatter = args
+    let _formatter = args
         .formatter
         .map(|fmt| fmt.value)
         .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
@@ -160,15 +160,21 @@ pub(crate) fn metric(
         .collect();
 
     item.expr = Box::new(parse_quote! {{
+        use #private::phf;
+
+        static __METADATA: #private::phf::Map<&'static str, &'static str> =
+            #private::phf::phf_map! { #( #attrs, )* };
+
         #[#private::linkme::distributed_slice(#private::METRICS)]
         #[linkme(crate = #private::linkme)]
         static __: #krate::MetricEntry = #private::entry(
             &#static_name,
             #name,
             #description,
+            &__METADATA,
         );
 
-        #krate::MetricInstance::new(#static_expr, #name, #description)
+        #static_expr
     }});
 
     Ok(quote! { #item })

@@ -88,7 +88,6 @@ impl MetricBuilder {
         MetricEntry {
             metric: MetricWrapper(&NullMetric),
             name: self.name,
-            namespace: None,
             description: self.desc,
             metadata: Metadata::new(self.metadata),
         }
