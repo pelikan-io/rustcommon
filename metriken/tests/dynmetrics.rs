@@ -75,7 +75,7 @@ fn pinned_dup_register() {
         metric.register(MetricBuilder::new("pinned_dup_1").into_entry());
         metric.register(MetricBuilder::new("pinned_dup_2").into_entry());
 
-        assert_eq!(metrics().dynamic_metrics().len(), 2);
+        assert_eq!(metrics().dynamic_metrics().len(), 1);
     }
     assert_eq!(metrics().dynamic_metrics().len(), 0);
 }

@@ -9,8 +9,9 @@
 //! exception of [`DynPinnedMetric`] and [`DynBoxedMetric`].
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomPinned;
+use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::pin::Pin;
 
@@ -21,26 +22,30 @@ use crate::{Metadata, Metric, MetricEntry, MetricWrapper};
 use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
 
 pub(crate) struct DynMetricsRegistry {
-    metrics: Vec<MetricEntry>,
+    metrics: BTreeMap<usize, MetricEntry>,
 }
 
 impl DynMetricsRegistry {
     const fn new() -> Self {
         Self {
-            metrics: Vec::new(),
+            metrics: BTreeMap::new(),
         }
     }
 
+    fn key_for(entry: &MetricEntry) -> usize {
+        entry.metric() as *const dyn Metric as *const () as usize
+    }
+
     fn register(&mut self, entry: MetricEntry) {
-        self.metrics.push(entry);
+        self.metrics.insert(Self::key_for(&entry), entry);
     }
 
     fn unregister(&mut self, metric: *const dyn Metric) {
-        self.metrics
-            .retain(|x| x.metric.0 as *const () != metric as *const ());
+        let key = metric as *const () as usize;
+        self.metrics.remove(&key);
     }
 
-    pub(crate) fn metrics(&self) -> &[MetricEntry] {
+    pub(crate) fn metrics(&self) -> &BTreeMap<usize, MetricEntry> {
         &self.metrics
     }
 }
@@ -122,6 +127,38 @@ pub(crate) fn unregister(metric: *const dyn Metric) {
     REGISTRY.write().unregister(metric);
 }
 
+/// Ensures that the metric `M` has a unique address.
+///
+/// The correctness of the registry depends on each dynamic address having a
+/// unique address. However, we don't want to unconditionally add padding to
+/// all metrics. The way to work around this is to union M with a type of size
+/// 1. That way, if M is a zero-sized type then the storage will have a size
+/// of 1 but otherwise it has the size of M.
+union PinnedMetricStorage<M> {
+    metric: ManuallyDrop<M>,
+    _padding: u8,
+}
+
+impl<M> PinnedMetricStorage<M> {
+    fn new(metric: M) -> Self {
+        Self {
+            metric: ManuallyDrop::new(metric),
+        }
+    }
+
+    #[inline]
+    fn metric(&self) -> &M {
+        // Safety: nothing ever accesses _padding
+        unsafe { &self.metric }
+    }
+}
+
+impl<M> Drop for PinnedMetricStorage<M> {
+    fn drop(&mut self) {
+        unsafe { ManuallyDrop::drop(&mut self.metric) }
+    }
+}
+
 /// A dynamic metric that stores the metric inline.
 ///
 /// This is a dynamic metric that relies on pinning guarantees to ensure that
@@ -144,7 +181,7 @@ pub(crate) fn unregister(metric: *const dyn Metric) {
 ///
 /// [`register`]: crate::dynmetrics::DynPinnedMetric::register
 pub struct DynPinnedMetric<M: Metric> {
-    metric: M,
+    storage: PinnedMetricStorage<M>,
     // This type relies on Pin's guarantees for correctness. Allowing it to be unpinned would cause
     // errors.
     _marker: PhantomPinned,
@@ -158,7 +195,7 @@ impl<M: Metric> DynPinnedMetric<M> {
     /// [`register`]: self::DynPinnedMetric::register
     pub fn new(metric: M) -> Self {
         Self {
-            metric,
+            storage: PinnedMetricStorage::new(metric),
             _marker: PhantomPinned,
         }
     }
@@ -168,7 +205,7 @@ impl<M: Metric> DynPinnedMetric<M> {
     /// Calling this multiple times will result in the same metric being
     /// registered multiple times under potentially different names.
     pub fn register(self: Pin<&Self>, mut entry: MetricEntry) {
-        entry.metric = MetricWrapper(&self.metric);
+        entry.metric = MetricWrapper(self.storage.metric());
 
         // SAFETY:
         // To prove that this is safe we need to list out a few guarantees/requirements:
@@ -192,7 +229,7 @@ impl<M: Metric> DynPinnedMetric<M> {
 impl<M: Metric> Drop for DynPinnedMetric<M> {
     fn drop(&mut self) {
         // If this metric has not been registered then nothing will be removed.
-        unregister(&self.metric);
+        unregister(self.storage.metric());
     }
 }
 
@@ -201,7 +238,7 @@ impl<M: Metric> Deref for DynPinnedMetric<M> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.metric
+        self.storage.metric()
     }
 }
 
