@@ -1,7 +1,7 @@
 use crate::Metric;
 
-use std::time::Duration;
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use heatmap::Instant;
 
