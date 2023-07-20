@@ -13,13 +13,13 @@ fn custom_formatter(metric: &MetricEntry, format: Format) -> String {
     }
 }
 
-#[metric(name = "metric", formatter = &custom_formatter)]
+#[metric(name = "metric", formatter = custom_formatter)]
 static METRIC: Counter = Counter::new();
 
-#[metric(name = "metric", metadata = { instance = "a"}, formatter = &custom_formatter)]
+#[metric(name = "metric", metadata = { instance = "a"}, formatter = custom_formatter)]
 static METRIC_A: Counter = Counter::new();
 
-#[metric(name = "metric", metadata = { instance = "b"}, formatter = &custom_formatter)]
+#[metric(name = "metric", metadata = { instance = "b"}, formatter = custom_formatter)]
 static METRIC_B: Counter = Counter::new();
 
 #[test]

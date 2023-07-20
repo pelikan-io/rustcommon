@@ -154,7 +154,7 @@ pub mod export {
         name: &'static str,
         description: Option<&'static str>,
         metadata: &'static phf::Map<&'static str, &'static str>,
-        formatter: &'static dyn Fn(&crate::MetricEntry, crate::Format) -> String,
+        formatter: fn(&crate::MetricEntry, crate::Format) -> String,
     ) -> crate::MetricEntry {
         use std::borrow::Cow;
 
@@ -225,7 +225,7 @@ pub struct MetricEntry {
     name: Cow<'static, str>,
     description: Option<Cow<'static, str>>,
     metadata: Metadata,
-    formatter: &'static dyn Fn(&Self, Format) -> String,
+    formatter: fn(&Self, Format) -> String,
 }
 
 impl MetricEntry {

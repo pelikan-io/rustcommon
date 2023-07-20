@@ -146,7 +146,7 @@ pub(crate) fn metric(
     let formatter = args
         .formatter
         .map(|fmt| fmt.value)
-        .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
+        .unwrap_or_else(|| parse_quote!(#krate::default_formatter));
 
     let attrs: Vec<_> = metadata
         .0

@@ -74,7 +74,7 @@ impl MetricBuilder {
             name: name.into(),
             desc: None,
             metadata: HashMap::new(),
-            formatter: &default_formatter,
+            formatter: default_formatter,
         }
     }
 
@@ -87,6 +87,11 @@ impl MetricBuilder {
     /// Add a new key-value metadata entry.
     pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn formatter(mut self, formatter: fn(&MetricEntry, Format) -> String) -> Self {
+        self.formatter = formatter;
         self
     }
 
