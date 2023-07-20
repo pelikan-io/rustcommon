@@ -143,10 +143,10 @@ pub(crate) fn metric(
         .map(|SingleArg { value, .. }| parse_quote!(Some(#value)))
         .unwrap_or_else(|| parse_quote!(None));
 
-    let _formatter = args
+    let formatter = args
         .formatter
         .map(|fmt| fmt.value)
-        .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
+        .unwrap_or_else(|| parse_quote!(#krate::default_formatter));
 
     let attrs: Vec<_> = metadata
         .0
@@ -172,6 +172,7 @@ pub(crate) fn metric(
             #name,
             #description,
             &__METADATA,
+            #formatter,
         );
 
         #static_expr

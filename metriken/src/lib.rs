@@ -87,6 +87,7 @@ macro_rules! used_in_docs {
 }
 
 mod counter;
+mod formatter;
 mod gauge;
 mod heatmap;
 mod lazy;
@@ -100,6 +101,7 @@ pub mod dynmetrics;
 
 pub use crate::counter::Counter;
 pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
+pub use crate::formatter::{default_formatter, Format};
 pub use crate::gauge::Gauge;
 pub use crate::heatmap::Heatmap;
 pub use crate::lazy::Lazy;
@@ -152,6 +154,7 @@ pub mod export {
         name: &'static str,
         description: Option<&'static str>,
         metadata: &'static phf::Map<&'static str, &'static str>,
+        formatter: fn(&crate::MetricEntry, crate::Format) -> String,
     ) -> crate::MetricEntry {
         use std::borrow::Cow;
 
@@ -163,6 +166,7 @@ pub mod export {
                 None => None,
             },
             metadata: Metadata::new_static(metadata),
+            formatter,
         }
     }
 }
@@ -221,6 +225,7 @@ pub struct MetricEntry {
     name: Cow<'static, str>,
     description: Option<Cow<'static, str>>,
     metadata: Metadata,
+    formatter: fn(&Self, Format) -> String,
 }
 
 impl MetricEntry {
@@ -242,6 +247,11 @@ impl MetricEntry {
     /// Access the [`Metadata`] associated with this metrics entry.
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Format the metric into a string with the given format.
+    pub fn formatted(&self, format: Format) -> String {
+        (self.formatter)(self, format)
     }
 
     /// Checks whether `metric` is the metric for this entry.
