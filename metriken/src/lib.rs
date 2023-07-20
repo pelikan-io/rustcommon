@@ -69,6 +69,8 @@
 use std::any::Any;
 use std::borrow::Cow;
 
+use crate::export::MetricWrapper;
+
 /// A helper macro for marking imports as being used.
 ///
 /// This is meant to be used for when a reference is made to an item from a doc
@@ -106,17 +108,41 @@ pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};
 
 pub use metriken_derive::metric;
 
-pub extern crate clocksource as time;
+/// A counter holds a unsigned 64bit monotonically non-decreasing value. The
+/// counter behavior is to wrap on overflow.
+///
+/// Common examples are the number of operations (requests, reads, ...) or
+/// errors.
+///
+/// Unlike a standard `Counter`, a `LazyCounter` will not report a value unless
+/// it has been initialized by writing to at least once. This is useful for when
+/// you want to declare metrics statically, but only report metrics that are
+/// being used.
+pub type LazyCounter = Lazy<Counter>;
 
-#[doc(hidden)]
-pub use metriken_derive::to_lowercase;
+/// A gauge holds a signed 64-bit value and is used to represent metrics which
+/// may increase or decrease in value. The behavior is to wrap around on
+/// overflow and underflow.
+///
+/// Common examples are queue depths, temperatures, and usage metrics.
+///
+/// Unlike a standard `Gauge`, a `LazyGauge` will not report a value unless it
+/// has been initialized by writing to at least once. This is useful for when
+/// you want to declare metrics statically, but only report metrics that are
+/// being used.
+pub type LazyGauge = Lazy<Gauge>;
 
 #[doc(hidden)]
 pub mod export {
     pub extern crate linkme;
     pub extern crate phf;
 
-    use crate::Metadata;
+    use crate::{Metadata, Metric};
+
+    /// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
+    /// is fine. This wrapper is a work around to allow us to use const constructors
+    /// for the MetricEntry struct.
+    pub struct MetricWrapper(pub *const dyn Metric);
 
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];
@@ -130,7 +156,7 @@ pub mod export {
         use std::borrow::Cow;
 
         crate::MetricEntry {
-            metric: crate::MetricWrapper(metric),
+            metric: MetricWrapper(metric),
             name: Cow::Borrowed(name),
             description: match description {
                 Some(desc) => Some(Cow::Borrowed(desc)),
@@ -225,9 +251,3 @@ impl std::fmt::Debug for MetricEntry {
             .finish()
     }
 }
-
-/// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
-/// is fine. This wrapper is a work around to allow us to use const constructors
-/// for the MetricEntry struct.
-#[doc(hidden)]
-pub struct MetricWrapper(pub *const dyn Metric);
