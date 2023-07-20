@@ -16,7 +16,7 @@ use std::ops::Deref;
 use std::pin::Pin;
 
 use crate::null::NullMetric;
-use crate::{Metadata, Metric, MetricEntry, MetricWrapper};
+use crate::{default_formatter, Format, Metadata, Metric, MetricEntry, MetricWrapper};
 
 // We use parking_lot here since it avoids lock poisioning
 use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
@@ -64,6 +64,7 @@ pub struct MetricBuilder {
     name: Cow<'static, str>,
     desc: Option<Cow<'static, str>>,
     metadata: HashMap<String, String>,
+    formatter: &'static dyn Fn(&MetricEntry, Format) -> String,
 }
 
 impl MetricBuilder {
@@ -73,6 +74,7 @@ impl MetricBuilder {
             name: name.into(),
             desc: None,
             metadata: HashMap::new(),
+            formatter: &default_formatter,
         }
     }
 
@@ -95,6 +97,7 @@ impl MetricBuilder {
             name: self.name,
             description: self.desc,
             metadata: Metadata::new(self.metadata),
+            formatter: self.formatter,
         }
     }
 
