@@ -184,6 +184,35 @@ pub trait Metric: Send + Sync + 'static {
     ///
     /// [`Any`]: std::any::Any
     fn as_any(&self) -> Option<&dyn Any>;
+
+    /// Get the value of the current metric, should it be enabled.
+    ///
+    /// # Note to Implementors
+    /// If your metric's value does not correspond to one of the variants of
+    /// [`Value`] then return [`Value::Other`] and metric consumers can use
+    /// [`as_any`](crate::Metric::as_any) to specifically handle your metric.
+    fn value(&self) -> Option<Value>;
+}
+
+/// The value of a metric.
+///
+/// See [`Metric::value`].
+#[non_exhaustive]
+#[derive(Clone)]
+pub enum Value<'a> {
+    /// A counter value.
+    Counter(u64),
+
+    /// A gauge value.
+    Gauge(i64),
+
+    Heatmap(&'a Heatmap),
+
+    /// The value of the metric could not be represented using the other
+    /// `Value` variants.
+    ///
+    /// Use [`Metric::as_any`] to specifically handle the type of this metric.
+    Other,
 }
 
 /// A statically declared metric entry.

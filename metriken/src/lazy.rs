@@ -116,4 +116,8 @@ impl<T: Metric, F: Send + 'static> Metric for Lazy<T, F> {
             None => None,
         }
     }
+
+    fn value(&self) -> Option<crate::Value> {
+        Lazy::get(self).and_then(|metric| metric.value())
+    }
 }

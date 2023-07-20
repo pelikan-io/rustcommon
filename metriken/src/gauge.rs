@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use crate::Metric;
+use crate::{Metric, Value};
 use std::any::Any;
 use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -90,5 +90,9 @@ impl Gauge {
 impl Metric for Gauge {
     fn as_any(&self) -> Option<&dyn Any> {
         Some(self)
+    }
+
+    fn value(&self) -> Option<Value> {
+        Some(Value::Gauge(self.value()))
     }
 }
