@@ -31,7 +31,11 @@ pub fn default_formatter(metric: &MetricEntry, format: Format) -> String {
                 .collect();
             let metadata = metadata.join(", ");
 
-            format!("{}{{{metadata}}}", metric.name())
+            if metadata.is_empty() {
+                format!("{}", metric.name())
+            } else {
+                format!("{}{{{metadata}}}", metric.name())
+            }
         }
         _ => metric.name().to_string(),
     }
