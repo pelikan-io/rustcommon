@@ -47,7 +47,10 @@ fn instance_a() {
     assert_eq!(metrics.len(), 3);
     assert_eq!(metric.name(), "metric");
     assert_eq!(metric.formatted(Format::Simple), "metric_instance_a");
-    assert_eq!(metric.formatted(Format::Prometheus), "metric{instance=\"a\"}");
+    assert_eq!(
+        metric.formatted(Format::Prometheus),
+        "metric{instance=\"a\"}"
+    );
 }
 
 #[test]
@@ -58,5 +61,8 @@ fn instance_b() {
     assert_eq!(metrics.len(), 3);
     assert_eq!(metric.name(), "metric");
     assert_eq!(metric.formatted(Format::Simple), "metric_instance_b");
-    assert_eq!(metric.formatted(Format::Prometheus), "metric{instance=\"b\"}");
+    assert_eq!(
+        metric.formatted(Format::Prometheus),
+        "metric{instance=\"b\"}"
+    );
 }
