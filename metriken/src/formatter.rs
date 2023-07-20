@@ -32,7 +32,7 @@ pub fn default_formatter(metric: &MetricEntry, format: Format) -> String {
             let metadata = metadata.join(", ");
 
             if metadata.is_empty() {
-                format!("{}", metric.name())
+                metric.name().to_string()
             } else {
                 format!("{}{{{metadata}}}", metric.name())
             }
