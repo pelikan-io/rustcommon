@@ -29,8 +29,8 @@
 //! # names.sort();
 //! #
 //! # assert_eq!(names.len(), 2);
-//! # assert_eq!(names[0], "my.metric.name");
-//! # assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
+//! # assert_eq!(names[0], "COUNTER_A");
+//! # assert_eq!(names[1], "my.metric.name");
 //! ```
 //!
 //! # Accessing Metrics
@@ -57,8 +57,8 @@
 //! names.sort();
 //!
 //! assert_eq!(names.len(), 2);
-//! assert_eq!(names[0], "my.metric.name");
-//! assert_eq!(names[1], concat!(module_path!(), "::", "COUNTER_A"));
+//! assert_eq!(names[0], "COUNTER_A");
+//! assert_eq!(names[1], "my.metric.name");
 //! ```
 //!
 //! # How it Works
@@ -113,15 +113,30 @@ pub use metriken_derive::to_lowercase;
 #[doc(hidden)]
 pub mod export {
     pub extern crate linkme;
-    pub use clocksource::{Duration, Nanoseconds};
+    pub extern crate phf;
 
     use crate::Metadata;
 
     #[linkme::distributed_slice]
     pub static METRICS: [crate::MetricEntry] = [..];
 
-    pub const fn metadata(map: &'static phf::Map<&'static str, &'static str>) -> Metadata {
-        Metadata::new_static(map)
+    pub const fn entry(
+        metric: &'static dyn crate::Metric,
+        name: &'static str,
+        description: Option<&'static str>,
+        metadata: &'static phf::Map<&'static str, &'static str>,
+    ) -> crate::MetricEntry {
+        use std::borrow::Cow;
+
+        crate::MetricEntry {
+            metric: crate::MetricWrapper(metric),
+            name: Cow::Borrowed(name),
+            description: match description {
+                Some(desc) => Some(Cow::Borrowed(desc)),
+                None => None,
+            },
+            metadata: Metadata::new_static(metadata),
+        }
     }
 }
 
@@ -148,41 +163,11 @@ pub trait Metric: Send + Sync + 'static {
 pub struct MetricEntry {
     metric: MetricWrapper,
     name: Cow<'static, str>,
-    namespace: Option<&'static str>,
     description: Option<Cow<'static, str>>,
     metadata: Metadata,
 }
 
 impl MetricEntry {
-    #[doc(hidden)]
-    pub const fn _new_const(
-        metric: MetricWrapper,
-        name: &'static str,
-        namespace: &'static str,
-        description: &'static str,
-    ) -> Self {
-        let namespace = if namespace.is_empty() {
-            None
-        } else {
-            Some(namespace)
-        };
-        let description = if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        };
-        Self {
-            metric,
-            name: Cow::Borrowed(name),
-            namespace,
-            description: match description {
-                Some(desc) => Some(Cow::Borrowed(desc)),
-                None => None,
-            },
-            metadata: Metadata::default_const(),
-        }
-    }
-
     /// Get a reference to the metric that this entry corresponds to.
     pub fn metric(&self) -> &dyn Metric {
         unsafe { &*self.metric.0 }
@@ -193,11 +178,6 @@ impl MetricEntry {
         &self.name
     }
 
-    /// Get the namespace of this metric.
-    pub fn namespace(&self) -> Option<&str> {
-        self.namespace
-    }
-
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
         self.description.as_deref()
@@ -206,6 +186,21 @@ impl MetricEntry {
     /// Access the [`Metadata`] associated with this metrics entry.
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Checks whether `metric` is the metric for this entry.
+    ///
+    /// This checks both the type id and the address. Note that it may have
+    /// false positives if `metric` is a ZST since multiple ZSTs may share
+    /// the same address.
+    pub fn is(&self, metric: &dyn Metric) -> bool {
+        if self.metric().type_id() != metric.type_id() {
+            return false;
+        }
+
+        let a = self.metric() as *const _ as *const ();
+        let b = metric as *const _ as *const ();
+        a == b
     }
 }
 

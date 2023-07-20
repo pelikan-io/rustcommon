@@ -2,44 +2,34 @@
 // Licensed under the Apache License, Version 2.0
 // http://www.apache.org/licenses/LICENSE-2.0
 
-use crate::args::ArgName;
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
+
+use crate::args::{ArgName, Metadata, MetadataEntry, SingleArg, SingleArgExt};
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::FoundCrate;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
-use syn::{parse_quote, Error, Expr, Ident, ItemStatic, Path, Token};
+use syn::{parse_quote, Expr, Ident, ItemStatic, Path, Token};
 
-struct SingleArg<T> {
-    ident: ArgName,
-    eq: Token![=],
-    value: T,
-}
-
-impl<T: Parse> Parse for SingleArg<T> {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            ident: input.parse()?,
-            eq: input.parse()?,
-            value: input.parse()?,
-        })
-    }
-}
-
-impl<T: ToTokens> ToTokens for SingleArg<T> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.ident.to_tokens(tokens);
-        self.eq.to_tokens(tokens);
-        self.value.to_tokens(tokens);
-    }
-}
-
+/// All arguments to the metric attribute macro
+///
+/// ```text
+/// #[metric(formatter = &fmt, name = "metric")]
+///          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+///
+/// The parse implementation for this type separates out the `formatter` and
+/// `krate` arguments. All others are passed verbatim to the
+/// `metriken::metadata!` macro.
 #[derive(Default)]
 struct MetricArgs {
-    name: Option<SingleArg<Expr>>,
-    namespace: Option<SingleArg<Expr>>,
-    description: Option<SingleArg<Expr>>,
+    metadata: Option<SingleArg<Metadata>>,
+    formatter: Option<SingleArg<Expr>>,
     krate: Option<SingleArg<Path>>,
+    name: Option<SingleArg<Expr>>,
+    description: Option<SingleArg<Expr>>,
 }
 
 impl Parse for MetricArgs {
@@ -47,16 +37,10 @@ impl Parse for MetricArgs {
         let mut args = MetricArgs::default();
         let mut first = true;
 
-        fn duplicate_arg_error(
-            span: Span,
-            arg: &impl std::fmt::Display,
-        ) -> syn::Result<MetricArgs> {
-            Err(Error::new(
-                span,
-                format!("Unexpected duplicate argument '{}'", arg),
-            ))
-        }
-
+        // # How parsing works
+        // We first peek at the next token and use that to determine which
+        // argument to parse. `formatter` and `crate` are handled specially
+        // while anything else is put into the attrs map.
         while !input.is_empty() {
             if !first {
                 let _: Token![,] = input.parse()?;
@@ -65,42 +49,23 @@ impl Parse for MetricArgs {
 
             let arg: ArgName = input.fork().parse()?;
             match &*arg.to_string() {
-                "name" => {
-                    let name = input.parse()?;
-                    match args.name {
-                        None => args.name = Some(name),
-                        Some(_) => return duplicate_arg_error(name.span(), &arg),
-                    }
-                }
-                "namespace" => {
-                    let namespace = input.parse()?;
-                    match args.namespace {
-                        None => args.namespace = Some(namespace),
-                        Some(_) => return duplicate_arg_error(namespace.span(), &arg),
-                    }
-                }
-                "description" => {
-                    let description = input.parse()?;
-                    match args.description {
-                        None => args.description = Some(description),
-                        Some(_) => return duplicate_arg_error(description.span(), &arg),
-                    }
-                }
+                "metadata" => args.metadata.insert_or_duplicate(input.parse()?)?,
+                "name" => args.name.insert_or_duplicate(input.parse()?)?,
+                "description" => args.description.insert_or_duplicate(input.parse()?)?,
+                "formatter" => args.formatter.insert_or_duplicate(input.parse()?)?,
                 "crate" => {
                     let krate = SingleArg {
                         ident: input.parse()?,
                         eq: input.parse()?,
                         value: Path::parse_mod_style(input)?,
                     };
-                    match args.krate {
-                        None => args.krate = Some(krate),
-                        Some(_) => return duplicate_arg_error(krate.span(), &arg),
-                    }
+
+                    args.krate.insert_or_duplicate(krate)?
                 }
-                x => {
-                    return Err(Error::new(
+                _ => {
+                    return Err(syn::Error::new(
                         arg.span(),
-                        format!("Unrecognized argument '{}'", x),
+                        format!("unknown argument `{arg}`"),
                     ))
                 }
             }
@@ -110,71 +75,107 @@ impl Parse for MetricArgs {
     }
 }
 
+impl MetricArgs {
+    fn crate_path(&mut self) -> Path {
+        match self.krate.take() {
+            Some(krate) => krate.value,
+            None => proc_macro_crate::crate_name("metriken")
+                .map(|krate| match krate {
+                    FoundCrate::Name(name) => {
+                        assert_ne!(name, "");
+                        Ident::new(&name, Span::call_site()).into()
+                    }
+                    FoundCrate::Itself => parse_quote! { metriken },
+                })
+                .unwrap_or(parse_quote! { metriken }),
+        }
+    }
+}
+
+#[derive(Default)]
+struct MetadataMap(BTreeMap<String, MetadataEntry>);
+
+impl MetadataMap {
+    fn insert(&mut self, entry: MetadataEntry) -> syn::Result<()> {
+        match self.0.entry(entry.name.value()) {
+            Entry::Occupied(_) => {
+                return Err(syn::Error::new_spanned(
+                    &entry.name,
+                    format_args!("duplicate metadata entry `{}`", entry.name.value()),
+                ))
+            }
+            Entry::Vacant(vacant) => {
+                vacant.insert(entry);
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub(crate) fn metric(
     attr_: proc_macro::TokenStream,
     item_: proc_macro::TokenStream,
 ) -> syn::Result<TokenStream> {
     let mut item: ItemStatic = syn::parse(item_)?;
-    let args: MetricArgs = syn::parse(attr_)?;
+    let mut args: MetricArgs = syn::parse(attr_)?;
 
-    let krate: TokenStream = match args.krate {
-        Some(krate) => krate.value.to_token_stream(),
-        None => proc_macro_crate::crate_name("metriken")
-            .map(|krate| match krate {
-                FoundCrate::Name(name) => {
-                    assert_ne!(name, "");
-                    Ident::new(&name, Span::call_site()).to_token_stream()
-                }
-                FoundCrate::Itself => quote! { metriken },
-            })
-            .unwrap_or(quote! { metriken }),
-    };
-
-    let name: TokenStream = match args.name {
-        Some(name) => name.value.to_token_stream(),
-        None => {
-            let item_name = &item.ident;
-            quote! { concat!(module_path!(), "::", stringify!(#item_name)) }
-        }
-    };
-
-    let namespace: TokenStream = match args.namespace {
-        Some(namespace) => namespace.value.to_token_stream(),
-        None => {
-            quote! {""}
-        }
-    };
-
-    let description: TokenStream = match args.description {
-        Some(description) => description.value.to_token_stream(),
-        None => {
-            quote! {""}
-        }
-    };
+    let krate = args.crate_path();
 
     let static_name = &item.ident;
     let static_expr = &item.expr;
-    let static_type = &item.ty;
+    let private: Path = parse_quote!(#krate::export);
+
+    let mut metadata = MetadataMap::default();
+    if let Some(data) = args.metadata {
+        for entry in data.value.entries {
+            metadata.insert(entry)?;
+        }
+    }
+
+    let name: syn::Expr = args.name.map(|name| name.value).unwrap_or_else(|| {
+        let name = syn::LitStr::new(&static_name.to_string(), static_name.span());
+        parse_quote!(#name)
+    });
+
+    let description: syn::Expr = args
+        .description
+        .map(|SingleArg { value, .. }| parse_quote!(Some(#value)))
+        .unwrap_or_else(|| parse_quote!(None));
+
+    let _formatter = args
+        .formatter
+        .map(|fmt| fmt.value)
+        .unwrap_or_else(|| parse_quote!(&#krate::default_formatter));
+
+    let attrs: Vec<_> = metadata
+        .0
+        .into_values()
+        .map(|entry| {
+            let key = entry.name.to_literal();
+            let value = entry.value;
+
+            quote!( #key => #value )
+        })
+        .collect();
 
     item.expr = Box::new(parse_quote! {{
-        // Rustc reserves attributes that start with "rustc". Since rustcommon
-        // starts with "rustc" we can't use it directly within attributes. To
-        // work around this, we first import the exports submodule and then use
-        // that for the attributes.
-        use #krate::export;
+        use #private::phf;
 
-        #[export::linkme::distributed_slice(export::METRICS)]
-        #[linkme(crate = export::linkme)]
-        static __: #krate::MetricEntry = #krate::MetricEntry::_new_const(
-            #krate::MetricWrapper(&#static_name.metric),
-            #static_name.name(),
-            #namespace,
-            #description
+        static __METADATA: #private::phf::Map<&'static str, &'static str> =
+            #private::phf::phf_map! { #( #attrs, )* };
+
+        #[#private::linkme::distributed_slice(#private::METRICS)]
+        #[linkme(crate = #private::linkme)]
+        static __: #krate::MetricEntry = #private::entry(
+            &#static_name,
+            #name,
+            #description,
+            &__METADATA,
         );
 
-        #krate::MetricInstance::new(#static_expr, #name, #description)
+        #static_expr
     }});
-    item.ty = Box::new(parse_quote! { #krate::MetricInstance<#static_type> });
 
     Ok(quote! { #item })
 }
