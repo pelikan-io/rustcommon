@@ -64,7 +64,7 @@ pub struct MetricBuilder {
     name: Cow<'static, str>,
     desc: Option<Cow<'static, str>>,
     metadata: HashMap<String, String>,
-    formatter: &'static dyn Fn(&MetricEntry, Format) -> String,
+    formatter: fn(&MetricEntry, Format) -> String,
 }
 
 impl MetricBuilder {
