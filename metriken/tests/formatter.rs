@@ -3,8 +3,12 @@ use metriken::*;
 fn custom_formatter(metric: &MetricEntry, format: Format) -> String {
     match format {
         Format::Simple => {
-            format!("{}_instance_{}", metric.name(), metric.metadata().get("instance").unwrap_or("unknown"))
-        },
+            format!(
+                "{}_instance_{}",
+                metric.name(),
+                metric.metadata().get("instance").unwrap_or("unknown")
+            )
+        }
         _ => metriken::default_formatter(metric, format),
     }
 }
@@ -31,10 +35,7 @@ fn metric_name_as_expected() {
 #[test]
 fn metric_name_and_description_as_expected() {
     let metrics = metrics().static_metrics();
-    let metric = metrics
-        .iter()
-        .find(|entry| entry.is(&METRIC_B))
-        .unwrap();
+    let metric = metrics.iter().find(|entry| entry.is(&METRIC_B)).unwrap();
 
     assert_eq!(metrics.len(), 2);
     assert_eq!(metric.name(), "metric");
