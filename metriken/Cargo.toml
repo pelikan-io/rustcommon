@@ -1,6 +1,6 @@
 [package]
 name = "metriken"
-version = "0.2.0-alpha"
+version = "0.2.0"
 edition = "2021"
 authors = [
 	"Brian Martin <brian@iop.systems>",
@@ -12,7 +12,7 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-metriken-derive = { version = "0.1.0", path = "./derive" }
+metriken-derive = { version = "0.2.0", path = "./derive" }
 histogram = { version = "0.7.3", path = "../histogram" }
 heatmap = { version = "0.7.5", path = "../heatmap" }
 
