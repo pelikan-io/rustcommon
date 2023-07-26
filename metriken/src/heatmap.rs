@@ -6,6 +6,7 @@ use std::time::Duration;
 use heatmap::Instant;
 
 pub use ::heatmap::Error as HeatmapError;
+pub use ::heatmap::Iter as HeatmapIter;
 pub use ::histogram::Bucket;
 
 /// A heatmap holds counts for quantized values across a period of time. It can
@@ -80,6 +81,10 @@ impl Heatmap {
     /// Increments a time-value pair by some count.
     pub fn add(&self, time: Instant, value: u64, count: u32) -> Result<(), HeatmapError> {
         self.get_or_init().increment(time, value, count)
+    }
+
+    pub fn iter(&self) -> Option<HeatmapIter> {
+        self.inner.get().map(|heatmap| heatmap.iter())
     }
 
     fn get_or_init(&self) -> &::heatmap::Heatmap {
