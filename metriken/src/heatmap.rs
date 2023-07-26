@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use heatmap::Instant;
 
-pub use ::heatmap::Iter as HeatmapIter;
 pub use ::heatmap::Error as HeatmapError;
+pub use ::heatmap::Iter as HeatmapIter;
 pub use ::histogram::Bucket;
 
 /// A heatmap holds counts for quantized values across a period of time. It can
