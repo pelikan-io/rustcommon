@@ -7,7 +7,7 @@ use crate::*;
 use core::sync::atomic::*;
 use std::cmp::min;
 
-use histogram::{Bucket, Histogram};
+pub use histogram::{Bucket, Histogram};
 
 type UnixInstant = clocksource::UnixInstant<Nanoseconds<u64>>;
 
