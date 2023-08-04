@@ -3,6 +3,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 mod bucket;
+#[cfg(feature = "serde-serialize")]
 mod compact;
 mod error;
 mod histogram;
@@ -10,6 +11,7 @@ mod percentile;
 
 pub use self::histogram::{Builder, Histogram};
 pub use bucket::Bucket;
+#[cfg(feature = "serde-serialize")]
 pub use compact::CompactHistogram;
 pub use error::Error;
 pub use percentile::Percentile;
@@ -164,6 +166,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "serde-serialize")]
     #[test]
     fn compact_histogram() {
         let h = CompactHistogram::default();
@@ -176,6 +179,7 @@ mod tests {
         assert!(Histogram::try_from(&h).is_err());
     }
 
+    #[cfg(feature = "serde-serialize")]
     #[test]
     fn hydrate_and_dehydrate() {
         let histogram = Histogram::new(0, 5, 10).unwrap();

@@ -461,6 +461,7 @@ impl Clone for Histogram {
     }
 }
 
+#[cfg(feature = "serde-serialize")]
 impl TryFrom<&CompactHistogram> for Histogram {
     type Error = error::Error;
 
