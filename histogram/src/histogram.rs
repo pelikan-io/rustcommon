@@ -461,6 +461,19 @@ impl Clone for Histogram {
     }
 }
 
+impl TryFrom<&CompactHistogram> for Histogram {
+    type Error = error::Error;
+
+    fn try_from(h: &CompactHistogram) -> Result<Self, Self::Error> {
+        let histogram = Histogram::new(h.m, h.r, h.n)?;
+        for (i, bucket_id) in h.index.iter().enumerate() {
+            let v = h.count[i];
+            histogram.buckets[*bucket_id].store(v, Ordering::Relaxed);
+        }
+        Ok(histogram)
+    }
+}
+
 /// An iterator that allows walking through the `Bucket`s within a `Histogram`.
 pub struct HistogramIter<'a> {
     current: usize,
