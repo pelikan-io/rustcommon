@@ -22,6 +22,24 @@ pub struct CompactHistogram {
     pub count: Vec<u32>,
 }
 
+impl CompactHistogram {
+    pub fn new() -> Self {
+        Self {
+            m: 0,
+            r: 0,
+            n: 0,
+            index: Vec::new(),
+            count: Vec::new(),
+        }
+    }
+}
+
+impl Default for CompactHistogram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<&Histogram> for CompactHistogram {
     fn from(histogram: &Histogram) -> Self {
         let mut index = Vec::new();
@@ -44,17 +62,5 @@ impl From<&Histogram> for CompactHistogram {
             index,
             count,
         }
-    }
-}
-
-impl CompactHistogram {
-    pub fn new() -> Self {
-        return Self {
-            m: 0,
-            r: 0,
-            n: 0,
-            index: Vec::new(),
-            count: Vec::new(),
-        };
     }
 }

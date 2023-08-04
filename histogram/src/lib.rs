@@ -173,7 +173,7 @@ mod tests {
         assert_eq!(&h.index, &[]);
         assert_eq!(&h.count, &[]);
 
-        assert_eq!(Histogram::try_from(&h).is_err(), true);
+        assert!(Histogram::try_from(&h).is_err());
     }
 
     #[test]
