@@ -9,7 +9,7 @@ use crate::histogram::Histogram;
 /// of the Histogram. It stores an individual vector for each field
 /// of non-zero buckets. Assuming index[0] = n, (index[0], count[0])
 /// corresponds to the nth bucket.
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct CompactHistogram {
     /// parameters representing the resolution and the range of
     /// the histogram tracking request latencies
@@ -20,24 +20,6 @@ pub struct CompactHistogram {
     pub index: Vec<usize>,
     /// histogram bucket counts corresponding to the indices
     pub count: Vec<u32>,
-}
-
-impl CompactHistogram {
-    pub fn new() -> Self {
-        Self {
-            m: 0,
-            r: 0,
-            n: 0,
-            index: Vec::new(),
-            count: Vec::new(),
-        }
-    }
-}
-
-impl Default for CompactHistogram {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl From<&Histogram> for CompactHistogram {

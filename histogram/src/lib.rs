@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn compact_histogram() {
-        let h = CompactHistogram::new();
+        let h = CompactHistogram::default();
         assert_eq!(h.m, 0);
         assert_eq!(h.r, 0);
         assert_eq!(h.n, 0);
