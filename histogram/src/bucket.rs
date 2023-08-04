@@ -4,7 +4,7 @@
 
 /// A `Bucket` represents a discrete range of values and the sum of recorded
 /// counts within this range.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Bucket {
     pub(crate) low: u64,
     pub(crate) high: u64,

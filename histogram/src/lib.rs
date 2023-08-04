@@ -3,12 +3,16 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 
 mod bucket;
+#[cfg(feature = "serde-serialize")]
+mod compact;
 mod error;
 mod histogram;
 mod percentile;
 
 pub use self::histogram::{Builder, Histogram};
 pub use bucket::Bucket;
+#[cfg(feature = "serde-serialize")]
+pub use compact::CompactHistogram;
 pub use error::Error;
 pub use percentile::Percentile;
 
@@ -17,7 +21,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_builder() {
+    fn builder() {
         let h = Histogram::builder().build().unwrap();
         let p = h.parameters();
 
@@ -27,7 +31,7 @@ mod tests {
     }
 
     #[test]
-    fn test_min_resolution() {
+    fn min_resolution() {
         let h = Histogram::builder().min_resolution(10).build().unwrap();
         assert_eq!(h.parameters().0, 3);
 
@@ -145,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_increment_and_decrement() {
+    fn increment_and_decrement() {
         let histogram = Histogram::builder().build().unwrap();
         assert_eq!(
             histogram.percentile(0.0).map(|b| b.count()),
@@ -160,5 +164,43 @@ mod tests {
             histogram.percentile(0.0).map(|b| b.count()),
             Err(Error::Empty)
         );
+    }
+
+    #[cfg(feature = "serde-serialize")]
+    #[test]
+    fn compact_histogram() {
+        let h = CompactHistogram::default();
+        assert_eq!(h.m, 0);
+        assert_eq!(h.r, 0);
+        assert_eq!(h.n, 0);
+        assert_eq!(&h.index, &[]);
+        assert_eq!(&h.count, &[]);
+
+        assert!(Histogram::try_from(&h).is_err());
+    }
+
+    #[cfg(feature = "serde-serialize")]
+    #[test]
+    fn hydrate_and_dehydrate() {
+        let histogram = Histogram::new(0, 5, 10).unwrap();
+
+        for v in (1..1024).step_by(128) {
+            assert!(histogram.increment(v, 1).is_ok());
+        }
+
+        let h = CompactHistogram::from(&histogram);
+        assert_eq!(h.m, 0);
+        assert_eq!(h.r, 5);
+        assert_eq!(h.n, 10);
+        assert_eq!(&h.index, &[1, 64, 80, 88, 96, 100, 104, 108]);
+        assert_eq!(&h.count, &[1, 1, 1, 1, 1, 1, 1, 1]);
+
+        let rehydrated = Histogram::try_from(&h).unwrap();
+        assert_eq!(rehydrated.parameters(), histogram.parameters());
+        assert_eq!(rehydrated.buckets(), histogram.buckets());
+        assert!(itertools::equal(
+            rehydrated.into_iter(),
+            histogram.into_iter()
+        ));
     }
 }
