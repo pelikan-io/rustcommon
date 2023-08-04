@@ -466,9 +466,12 @@ impl TryFrom<&CompactHistogram> for Histogram {
 
     fn try_from(h: &CompactHistogram) -> Result<Self, Self::Error> {
         let histogram = Histogram::new(h.m, h.r, h.n)?;
+        let nbuckets = histogram.buckets();
         for (i, bucket_id) in h.index.iter().enumerate() {
-            let v = h.count[i];
-            histogram.buckets[*bucket_id].store(v, Ordering::Relaxed);
+            if *bucket_id >= nbuckets {
+                return Err(Error::OutOfRange);
+            }
+            histogram.buckets[*bucket_id].store(h.count[i], Ordering::Relaxed);
         }
         Ok(histogram)
     }
