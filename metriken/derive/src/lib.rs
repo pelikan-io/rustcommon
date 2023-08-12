@@ -11,13 +11,13 @@ mod metric;
 ///
 /// Note that this will change the type of the generated static to be
 /// `MetricInstance<MetricTy>`. It implements both [`Deref`] and [`DerefMut`]
-/// so it can be used much the same as a normal static.  
+/// so it can be used much the same as a normal static.
 ///
 /// # Parameters
-/// - (optional) `crate`: The path to the `rustcommon_metrics` crate. This
-///   allows the `metric` macro to be used within other macros that get exported
-///   to third-party crates which may not have added `rustcommon_metrics` to
-///   their Cargo.toml.
+/// - (optional) `crate`: The path to the `metriken` crate. This allows the
+///   `metric` macro to be used within other macros that get exported to
+///   third-party crates which may not have added `metriken` to their
+///   Cargo.toml.
 /// - (optional) `formatter`: A function to be used to determine the output name
 ///   for this metric.
 ///
