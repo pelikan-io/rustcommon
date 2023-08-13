@@ -21,6 +21,8 @@ pub enum Format {
     Prometheus,
 }
 
+/// The default formatter supports Prometheus-style exposition, and otherwise
+/// simply prints the metric name.
 pub fn default_formatter(metric: &MetricEntry, format: Format) -> String {
     match format {
         Format::Prometheus => {
