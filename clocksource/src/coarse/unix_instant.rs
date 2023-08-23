@@ -74,11 +74,15 @@ impl UnixInstant {
     }
 
     pub fn checked_duration_since(&self, earlier: Self) -> Option<Duration> {
-        self.secs.checked_sub(earlier.secs).map(|secs| Duration { secs })
+        self.secs
+            .checked_sub(earlier.secs)
+            .map(|secs| Duration { secs })
     }
 
     pub fn checked_sub(&self, duration: Duration) -> Option<Self> {
-        self.secs.checked_sub(duration.secs).map(|secs| Self { secs })
+        self.secs
+            .checked_sub(duration.secs)
+            .map(|secs| Self { secs })
     }
 }
 
@@ -157,7 +161,7 @@ impl SubAssign<core::time::Duration> for UnixInstant {
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -168,9 +172,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to UnixInstant: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to UnixInstant: value is too big",
             TryFromErrorKind::BeforeEpoch => {
                 "can not convert to UnixInstant: value is before unix epoch"
             }
@@ -188,9 +190,16 @@ impl TryFrom<std::time::SystemTime> for UnixInstant {
     type Error = TryFromError;
 
     fn try_from(other: std::time::SystemTime) -> Result<Self, Self::Error> {
-        let other = other.duration_since(std::time::SystemTime::UNIX_EPOCH).map_err(|_| TryFromError { kind: TryFromErrorKind::BeforeEpoch })?.as_secs();
+        let other = other
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map_err(|_| TryFromError {
+                kind: TryFromErrorKind::BeforeEpoch,
+            })?
+            .as_secs();
         if other > u32::MAX as u64 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self { secs: other as u32 })
         }
@@ -203,7 +212,9 @@ impl TryFrom<crate::precise::UnixInstant> for UnixInstant {
     fn try_from(other: crate::precise::UnixInstant) -> Result<Self, Self::Error> {
         let other = other.ns / crate::precise::Duration::SECOND.as_nanos();
         if other > u32::MAX as u64 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self { secs: other as u32 })
         }

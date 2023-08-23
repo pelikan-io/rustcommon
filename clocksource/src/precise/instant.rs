@@ -137,6 +137,8 @@ impl SubAssign<core::time::Duration> for Instant {
 
 impl From<crate::coarse::Instant> for Instant {
     fn from(other: crate::coarse::Instant) -> Self {
-        Self { ns: other.secs as u64 * super::Duration::NANOSECOND.as_nanos() }
+        Self {
+            ns: other.secs as u64 * super::Duration::NANOSECOND.as_nanos(),
+        }
     }
 }

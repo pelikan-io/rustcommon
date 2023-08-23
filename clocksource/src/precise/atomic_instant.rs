@@ -112,7 +112,7 @@ impl AtomicInstant {
     /// Stores a new value for the instant if the current instant is the same as
     /// the `current` instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a
     /// description of the memory orderings.
     ///
     /// Unlike `AtomicDuration::compare_exchange`, this function is allowed to
@@ -133,7 +133,7 @@ impl AtomicInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -151,7 +151,7 @@ impl AtomicInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -166,7 +166,7 @@ impl AtomicInstant {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -181,13 +181,15 @@ impl AtomicInstant {
 impl From<Instant> for AtomicInstant {
     fn from(other: Instant) -> Self {
         AtomicInstant {
-            ns: other.ns.into()
+            ns: other.ns.into(),
         }
     }
 }
 
 impl From<crate::coarse::Instant> for AtomicInstant {
     fn from(other: crate::coarse::Instant) -> Self {
-        Self { ns: (other.secs as u64 * super::Duration::NANOSECOND.as_nanos()).into() }
+        Self {
+            ns: (other.secs as u64 * super::Duration::NANOSECOND.as_nanos()).into(),
+        }
     }
 }

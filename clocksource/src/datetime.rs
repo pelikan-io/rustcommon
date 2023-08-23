@@ -5,14 +5,15 @@ use time::OffsetDateTime;
 
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DateTime {
-	dt: OffsetDateTime,
+    dt: OffsetDateTime,
 }
 
 impl Display for DateTime {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-		let date = self.dt.date();
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let date = self.dt.date();
         let time = self.dt.time();
-        write!(f,
+        write!(
+            f,
             "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}+00:00",
             date.year(),
             date.month() as u8,
@@ -22,13 +23,13 @@ impl Display for DateTime {
             time.second(),
             time.millisecond(),
         )
-	}
+    }
 }
 
 impl From<crate::precise::UnixInstant> for DateTime {
     fn from(other: crate::precise::UnixInstant) -> Self {
         DateTime {
-            dt: OffsetDateTime::from_unix_timestamp_nanos(other.ns as i128).unwrap()
+            dt: OffsetDateTime::from_unix_timestamp_nanos(other.ns as i128).unwrap(),
         }
     }
 }
@@ -36,7 +37,7 @@ impl From<crate::precise::UnixInstant> for DateTime {
 impl From<crate::coarse::UnixInstant> for DateTime {
     fn from(other: crate::coarse::UnixInstant) -> Self {
         DateTime {
-            dt: OffsetDateTime::from_unix_timestamp(other.secs as i64).unwrap()
+            dt: OffsetDateTime::from_unix_timestamp(other.secs as i64).unwrap(),
         }
     }
 }

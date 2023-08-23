@@ -89,7 +89,7 @@ impl AtomicUnixInstant {
     /// Stores a new value for the instant if the current instant is the same as
     /// the `current` instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU32::compare_exchange_weak`] for a 
+    /// See: [`core::sync::atomic::AtomicU32::compare_exchange_weak`] for a
     /// description of the memory orderings.
     ///
     /// Unlike `AtomicDuration::compare_exchange`, this function is allowed to
@@ -114,7 +114,7 @@ impl AtomicUnixInstant {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU32::fetch_add`] for a 
+    /// See: [`core::sync::atomic::AtomicU32::fetch_add`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -132,7 +132,7 @@ impl AtomicUnixInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU32::fetch_max`] for a 
+    /// See: [`core::sync::atomic::AtomicU32::fetch_max`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -150,7 +150,7 @@ impl AtomicUnixInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU32::fetch_min`] for a 
+    /// See: [`core::sync::atomic::AtomicU32::fetch_min`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -165,7 +165,7 @@ impl AtomicUnixInstant {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU32::fetch_sub`] for a 
+    /// See: [`core::sync::atomic::AtomicU32::fetch_sub`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -180,13 +180,13 @@ impl AtomicUnixInstant {
 impl From<UnixInstant> for AtomicUnixInstant {
     fn from(other: UnixInstant) -> Self {
         AtomicUnixInstant {
-            secs: other.secs.into()
+            secs: other.secs.into(),
         }
     }
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -197,9 +197,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to UnixInstant: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to UnixInstant: value is too big",
             TryFromErrorKind::BeforeEpoch => {
                 "can not convert to UnixInstant: value is before unix epoch"
             }
@@ -217,11 +215,20 @@ impl TryFrom<std::time::SystemTime> for AtomicUnixInstant {
     type Error = TryFromError;
 
     fn try_from(other: std::time::SystemTime) -> Result<Self, Self::Error> {
-        let other = other.duration_since(std::time::SystemTime::UNIX_EPOCH).map_err(|_| TryFromError { kind: TryFromErrorKind::BeforeEpoch })?.as_secs();
+        let other = other
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map_err(|_| TryFromError {
+                kind: TryFromErrorKind::BeforeEpoch,
+            })?
+            .as_secs();
         if other > u32::MAX as u64 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
-            Ok(Self { secs: (other as u32).into() })
+            Ok(Self {
+                secs: (other as u32).into(),
+            })
         }
     }
 }
@@ -232,9 +239,13 @@ impl TryFrom<crate::precise::UnixInstant> for AtomicUnixInstant {
     fn try_from(other: crate::precise::UnixInstant) -> Result<Self, Self::Error> {
         let other = other.ns / crate::precise::Duration::SECOND.as_nanos();
         if other > u32::MAX as u64 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
-            Ok(Self { secs: (other as u32).into() })
+            Ok(Self {
+                secs: (other as u32).into(),
+            })
         }
     }
 }

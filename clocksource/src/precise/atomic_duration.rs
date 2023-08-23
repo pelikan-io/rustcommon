@@ -93,7 +93,7 @@ impl AtomicDuration {
     /// Stores a new value for the duration if the current duration is the same
     /// as the `current` duration.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a
     /// description of the memory orderings.
     ///
     /// Unlike `AtomicDuration::compare_exchange`, this function is allowed to
@@ -118,7 +118,7 @@ impl AtomicDuration {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_add`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_add`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -136,7 +136,7 @@ impl AtomicDuration {
     ///
     /// Returns the previous duration.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -154,7 +154,7 @@ impl AtomicDuration {
     ///
     /// Returns the previous duration.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -169,7 +169,7 @@ impl AtomicDuration {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -194,7 +194,7 @@ impl From<crate::coarse::Duration> for AtomicDuration {
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -204,9 +204,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to Duration: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to Duration: value is too big",
         }
     }
 }
@@ -222,7 +220,9 @@ impl TryFrom<core::time::Duration> for AtomicDuration {
 
     fn try_from(other: core::time::Duration) -> Result<Self, Self::Error> {
         if other.as_nanos() > u64::MAX as u128 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self::from_nanos(other.as_nanos() as u64))
         }

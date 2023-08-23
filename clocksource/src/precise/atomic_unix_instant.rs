@@ -110,7 +110,7 @@ impl AtomicUnixInstant {
     /// Stores a new value for the instant if the current instant is the same as
     /// the `current` instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::compare_exchange_weak`] for a
     /// description of the memory orderings.
     ///
     /// Unlike `AtomicDuration::compare_exchange`, this function is allowed to
@@ -131,7 +131,7 @@ impl AtomicUnixInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_max`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -149,7 +149,7 @@ impl AtomicUnixInstant {
     ///
     /// Returns the previous instant.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_min`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -164,7 +164,7 @@ impl AtomicUnixInstant {
     ///
     /// This operation wraps around on overflow.
     ///
-    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a 
+    /// See: [`core::sync::atomic::AtomicU64::fetch_sub`] for a
     /// description of the memory orderings.
     ///
     /// *Note*: This method is only available on platforms that support atomic
@@ -179,19 +179,21 @@ impl AtomicUnixInstant {
 impl From<UnixInstant> for AtomicUnixInstant {
     fn from(other: UnixInstant) -> Self {
         AtomicUnixInstant {
-            ns: other.ns.into()
+            ns: other.ns.into(),
         }
     }
 }
 
 impl From<crate::coarse::UnixInstant> for AtomicUnixInstant {
     fn from(other: crate::coarse::UnixInstant) -> Self {
-        Self { ns: (other.secs as u64 * super::Duration::NANOSECOND.as_nanos()).into() }
+        Self {
+            ns: (other.secs as u64 * super::Duration::NANOSECOND.as_nanos()).into(),
+        }
     }
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -202,9 +204,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to UnixInstant: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to UnixInstant: value is too big",
             TryFromErrorKind::BeforeEpoch => {
                 "can not convert to UnixInstant: value is before unix epoch"
             }
@@ -222,11 +222,20 @@ impl TryFrom<std::time::SystemTime> for AtomicUnixInstant {
     type Error = TryFromError;
 
     fn try_from(other: std::time::SystemTime) -> Result<Self, Self::Error> {
-        let other = other.duration_since(std::time::SystemTime::UNIX_EPOCH).map_err(|_| TryFromError { kind: TryFromErrorKind::BeforeEpoch })?.as_nanos();
+        let other = other
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map_err(|_| TryFromError {
+                kind: TryFromErrorKind::BeforeEpoch,
+            })?
+            .as_nanos();
         if other > u64::MAX as u128 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
-            Ok(Self { ns: (other as u64).into() })
+            Ok(Self {
+                ns: (other as u64).into(),
+            })
         }
     }
 }

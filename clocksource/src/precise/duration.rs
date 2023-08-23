@@ -29,7 +29,9 @@ impl Duration {
 
     /// Create a new `Duration` from a whole number of seconds.
     pub const fn from_secs(secs: u32) -> Self {
-        Self { ns: secs as u64 * Self::SECOND.as_nanos() }
+        Self {
+            ns: secs as u64 * Self::SECOND.as_nanos(),
+        }
     }
 
     /// Create a new `Duration` from a whole number of milliseconds.
@@ -39,7 +41,9 @@ impl Duration {
         if let Some(ns) = millis.checked_mul(Self::MILLISECOND.as_nanos()) {
             Ok(Self { ns })
         } else {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         }
     }
 
@@ -50,7 +54,9 @@ impl Duration {
         if let Some(ns) = micros.checked_mul(Self::MICROSECOND.as_nanos()) {
             Ok(Self { ns })
         } else {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         }
     }
 
@@ -95,7 +101,9 @@ impl Duration {
 
     /// Multiply this `Duration` by a `f64`.
     pub fn mul_f64(self, rhs: f64) -> Self {
-        Self { ns: (self.ns as f64 * rhs) as u64 }
+        Self {
+            ns: (self.ns as f64 * rhs) as u64,
+        }
     }
 }
 
@@ -173,7 +181,7 @@ impl From<crate::coarse::Duration> for Duration {
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -183,9 +191,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to Duration: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to Duration: value is too big",
         }
     }
 }
@@ -201,7 +207,9 @@ impl TryFrom<core::time::Duration> for Duration {
 
     fn try_from(other: core::time::Duration) -> Result<Self, Self::Error> {
         if other.as_nanos() > u64::MAX as u128 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self::from_nanos(other.as_nanos() as u64))
         }

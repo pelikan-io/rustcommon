@@ -146,12 +146,14 @@ impl SubAssign<core::time::Duration> for UnixInstant {
 
 impl From<crate::coarse::UnixInstant> for UnixInstant {
     fn from(other: crate::coarse::UnixInstant) -> Self {
-        Self { ns: other.secs as u64 * super::Duration::NANOSECOND.as_nanos() }
+        Self {
+            ns: other.secs as u64 * super::Duration::NANOSECOND.as_nanos(),
+        }
     }
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -162,9 +164,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to UnixInstant: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to UnixInstant: value is too big",
             TryFromErrorKind::BeforeEpoch => {
                 "can not convert to UnixInstant: value is before unix epoch"
             }
@@ -182,12 +182,18 @@ impl TryFrom<std::time::SystemTime> for UnixInstant {
     type Error = TryFromError;
 
     fn try_from(other: std::time::SystemTime) -> Result<Self, Self::Error> {
-        let other = other.duration_since(std::time::SystemTime::UNIX_EPOCH).map_err(|_| TryFromError { kind: TryFromErrorKind::BeforeEpoch })?.as_nanos();
+        let other = other
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map_err(|_| TryFromError {
+                kind: TryFromErrorKind::BeforeEpoch,
+            })?
+            .as_nanos();
         if other > u64::MAX as u128 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self { ns: other as u64 })
         }
     }
 }
-

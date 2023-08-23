@@ -106,7 +106,7 @@ impl Rem<Duration> for Duration {
 }
 
 pub struct TryFromError {
-    kind: TryFromErrorKind
+    kind: TryFromErrorKind,
 }
 
 enum TryFromErrorKind {
@@ -116,9 +116,7 @@ enum TryFromErrorKind {
 impl TryFromError {
     const fn description(&self) -> &'static str {
         match self.kind {
-            TryFromErrorKind::Overflow => {
-                "can not convert to Duration: value is too big"
-            }
+            TryFromErrorKind::Overflow => "can not convert to Duration: value is too big",
         }
     }
 }
@@ -134,7 +132,9 @@ impl TryFrom<core::time::Duration> for Duration {
 
     fn try_from(other: core::time::Duration) -> Result<Self, Self::Error> {
         if other.as_secs() > u32::MAX as u64 {
-            Err(TryFromError { kind: TryFromErrorKind::Overflow })
+            Err(TryFromError {
+                kind: TryFromErrorKind::Overflow,
+            })
         } else {
             Ok(Self::from_secs(other.as_secs() as u32))
         }
