@@ -1,11 +1,12 @@
 [package]
 name = "clocksource"
 version = "0.7.0"
-edition = "2021"
 authors = ["Brian Martin <brian@pelikan.io>"]
+edition = "2021"
+description = "Library for times and durations with fixed-size representations"
+license = "MIT OR Apache-2.0"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
-license = "MIT OR Apache-2.0"
 
 [dependencies]
 libc = "0.2.147"
