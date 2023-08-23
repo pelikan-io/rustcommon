@@ -9,7 +9,7 @@ homepage = "https://github.com/pelikan-io/rustcommon/waterfall"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-clocksource = { version = "0.6.0", path = "../clocksource" }
+clocksource = { version = "0.6.0" }
 dejavu = "2.37.0"
 image = "0.24.3"
 log = "0.4.17"
