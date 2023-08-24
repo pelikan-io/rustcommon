@@ -9,6 +9,6 @@ homepage = "https://github.com/pelikan-io/rustcommon/ratelimit"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-clocksource = { version = "0.6.0", path = "../clocksource" }
+clocksource = { version = "0.6.0" }
 parking_lot = "0.12.1"
 thiserror = "1.0.40"
