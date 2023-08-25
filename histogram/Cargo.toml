@@ -1,17 +1,17 @@
 [package]
 name = "histogram"
 version = "0.8.0"
-authors = ["Brian Martin <brian@pelikan.io>"]
 edition = "2021"
-description = "A collection of histogram datastructures"
+authors = ["Brian Martin <brian@pelikan.io>"]
 license = "MIT OR Apache-2.0"
+description = "A collection of histogram datastructures"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 clocksource = { version = "0.7.0", path = "../clocksource" }
-thiserror = "1.0.47"
 serde = { version = "1.0.144", features = ["derive"], optional = true }
+thiserror = "1.0.47"
 
 [features]
 serde = ["dep:serde"]
