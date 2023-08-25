@@ -1,18 +1,17 @@
 [package]
 name = "histogram"
 version = "0.8.0"
+authors = ["Brian Martin <brian@pelikan.io>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A collection of histogram datastructures"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/pelikan-io/rustcommon"
+repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 clocksource = { version = "0.7.0", path = "../clocksource" }
-thiserror = "*"
+thiserror = "1.0.47"
 serde = { version = "1.0.144", features = ["derive"], optional = true }
-
-[dev-dependencies]
-criterion = "0.4.0"
-pprof = { version = "0.3", features = ["flamegraph"] }
 
 [features]
 serde = ["dep:serde"]

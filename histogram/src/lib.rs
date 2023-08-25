@@ -1,5 +1,5 @@
 //! This crate contains a collection of histogram datastructures to help count
-//! occurances of values and report on their distribution.
+//! occurrences of values and report on their distribution.
 //!
 //! There are several implementations to choose from, with each targeting
 //! a specific use-case.
