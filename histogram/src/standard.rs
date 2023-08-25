@@ -89,6 +89,13 @@ impl Histogram {
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         <Self as _Histograms>::percentile(self, percentile)
     }
+
+    /// Zeros out all the buckets in the histogram.
+    pub fn clear(&mut self) {
+        for bucket in self.buckets.iter_mut() {
+            *bucket = 0;
+        }
+    }
 }
 
 impl<'a> IntoIterator for &'a Histogram {

@@ -82,6 +82,9 @@ impl Histogram {
     /// example, the 50th percentile (median) can be found using `50.0`.
     ///
     /// The results will be sorted by the percentile.
+    ///
+    /// *Note*: concurrent increments may result in percentiles which are not
+    /// exactly correct.
     pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
         <Self as _Histograms>::percentiles(self, percentiles)
     }
@@ -90,6 +93,9 @@ impl Histogram {
     ///
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
+    ///
+    /// *Note*: concurrent increments may result in percentiles which are not
+    /// exactly correct.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         <Self as _Histograms>::percentile(self, percentile)
     }
