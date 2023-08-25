@@ -273,7 +273,8 @@ mod test {
             .expect("failed to get distribution");
         assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
 
-        std::thread::sleep(core::time::Duration::from_millis(10));
+        // long sleep, but ensures we don't have weird timing issues in CI
+        std::thread::sleep(core::time::Duration::from_millis(20));
         let d = h
             .distribution_last(Duration::from_nanos(10_000_000))
             .expect("failed to get distribution");
