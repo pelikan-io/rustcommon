@@ -1,29 +1,33 @@
-// Copyright 2022 Twitter, Inc.
-// Licensed under the Apache License, Version 2.0
-// http://www.apache.org/licenses/LICENSE-2.0
+//! Buckets represent quantized value ranges and a count of observations within
+//! that range.
 
-/// A `Bucket` represents a discrete range of values and the sum of recorded
-/// counts within this range.
-#[derive(Clone, Copy, PartialEq)]
+/// A bucket represents a quantized range of values and a count of observations
+/// that fall into that range.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Bucket {
-    pub(crate) low: u64,
-    pub(crate) high: u64,
-    pub(crate) count: u32,
+    pub(crate) count: u64,
+    pub(crate) lower: u64,
+    pub(crate) upper: u64,
 }
 
 impl Bucket {
-    /// The lowest value represented by this `Bucket`.
-    pub fn low(&self) -> u64 {
-        self.low
-    }
-
-    /// The highest value represented by this `Bucket`.
-    pub fn high(&self) -> u64 {
-        self.high
-    }
-
-    /// The sum of the recorded counts which fall into this `Bucket`.
-    pub fn count(&self) -> u32 {
+    /// Returns the number of observations within the bucket's range.
+    pub fn count(&self) -> u64 {
         self.count
+    }
+
+    /// Returns the range for the bucket.
+    pub fn range(&self) -> std::ops::RangeInclusive<u64> {
+        std::ops::RangeInclusive::new(self.lower, self.upper)
+    }
+
+    /// Returns the inclusive lower bound for the bucket.
+    pub fn lower(&self) -> u64 {
+        self.lower
+    }
+
+    /// Returns the inclusive upper bound for the bucket.
+    pub fn upper(&self) -> u64 {
+        self.upper
     }
 }

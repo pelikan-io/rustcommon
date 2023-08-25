@@ -1,46 +1,93 @@
-use serde::{Deserialize, Serialize};
+//! Compact histogram representation which is useful for serialization when the
+//! data is sparse.
 
-use crate::histogram::Histogram;
+use crate::Config;
+use crate::_Histograms;
+use core::sync::atomic::Ordering;
 
-/// A `CompactHistogram` is a sparse, columnar representation of the
-/// Histogram. It is significantly smaller than a regular Histogram
-/// when a large number of buckets are zero, which is a frequent
-/// occurence; consequently it is used as the serialization format
-/// of the Histogram. It stores an individual vector for each field
-/// of non-zero buckets. Assuming index[0] = n, (index[0], count[0])
-/// corresponds to the nth bucket.
-#[derive(Default, Serialize, Deserialize)]
-pub struct CompactHistogram {
-    /// parameters representing the resolution and the range of
-    /// the histogram tracking request latencies
-    pub m: u32,
-    pub r: u32,
-    pub n: u32,
-    /// indices for the non-zero buckets in the histogram
-    pub index: Vec<usize>,
-    /// histogram bucket counts corresponding to the indices
-    pub count: Vec<u32>,
+/// A compact histogram which stores bucket indices and counts to efficiently
+/// represent a sparse histogram.
+#[cfg(feature = "serde")]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+pub struct Histogram {
+    a: u8,
+    b: u8,
+    n: u8,
+    index: Vec<usize>,
+    count: Vec<u64>,
 }
 
-impl From<&Histogram> for CompactHistogram {
-    fn from(histogram: &Histogram) -> Self {
+/// A compact histogram which stores bucket indices and counts to efficiently
+/// represent a sparse histogram.
+#[cfg(not(feature = "serde"))]
+pub struct Histogram {
+    a: u8,
+    b: u8,
+    n: u8,
+    index: Vec<usize>,
+    count: Vec<u64>,
+}
+
+impl _Histograms for Histogram {
+    fn config(&self) -> Config {
+        Config::new(self.a, self.b, self.n).unwrap()
+    }
+
+    fn total_count(&self) -> u128 {
+        self.count.iter().map(|c| *c as u128).sum()
+    }
+
+    fn get_count(&self, index: usize) -> u64 {
+        if let Ok(index) = self.index.binary_search(&index) {
+            *self.count.get(index).unwrap_or(&0)
+        } else {
+            0
+        }
+    }
+}
+
+impl From<&crate::Histogram> for Histogram {
+    fn from(other: &crate::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
         let mut index = Vec::new();
         let mut count = Vec::new();
 
-        for (i, bucket) in histogram
-            .into_iter()
-            .enumerate()
-            .filter(|(_i, bucket)| bucket.count() != 0)
-        {
+        for (i, c) in other.buckets.iter().enumerate().filter(|(_i, c)| **c != 0) {
             index.push(i);
-            count.push(bucket.count());
+            count.push(*c);
         }
 
-        let p = histogram.parameters();
         Self {
-            m: p.0,
-            r: p.1,
-            n: p.2,
+            a,
+            b,
+            n,
+            index,
+            count,
+        }
+    }
+}
+
+impl From<&crate::atomic::Histogram> for Histogram {
+    fn from(other: &crate::atomic::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+        let mut index = Vec::new();
+        let mut count = Vec::new();
+
+        for (i, c) in other
+            .buckets
+            .iter()
+            .map(|c| c.load(Ordering::Relaxed))
+            .enumerate()
+            .filter(|(_i, c)| *c != 0)
+        {
+            index.push(i);
+            count.push(c);
+        }
+
+        Self {
+            a,
+            b,
+            n,
             index,
             count,
         }
