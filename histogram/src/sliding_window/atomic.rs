@@ -1,6 +1,6 @@
 use super::*;
-use core::sync::atomic::AtomicU64;
 use crate::atomic::Histogram as AtomicHistogram;
+use core::sync::atomic::AtomicU64;
 
 /// A type of histogram that reports on the distribution of values across a
 /// moving window of time. For example, the distribution of values for the past
