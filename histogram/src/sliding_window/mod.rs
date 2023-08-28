@@ -154,7 +154,7 @@ impl Common {
         let interval: u128 = interval.as_nanos();
 
         assert!(interval <= u64::MAX.into());
-        assert!(interval >= 1000);
+        assert!(interval >= Duration::MILLISECOND.as_nanos().into());
 
         let span = Duration::from_nanos(interval as u64 * slices as u64);
         let interval = Duration::from_nanos(interval as u64);

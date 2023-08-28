@@ -99,6 +99,16 @@ impl Histogram {
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         <Self as _Histograms>::percentile(self, percentile)
     }
+
+    /// Zeros out all the buckets in the histogram.
+    ///
+    /// *Note*: concurrent increments may result in the histogram not being
+    /// clear when this operation completes.
+    pub fn clear(&self) {
+        for bucket in self.buckets.iter() {
+            bucket.store(0, Ordering::Relaxed);
+        }
+    }
 }
 
 impl<'a> IntoIterator for &'a Histogram {

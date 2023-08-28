@@ -46,7 +46,7 @@ impl Histogram {
     /// * `n` must be less than or equal to 64
     /// * `n` must be greater than `a + b`
     /// * `interval` in nanoseconds must fit within a `u64`
-    /// * `interval` must be at least 1 microsecond
+    /// * `interval` must be at least 1 millisecond
     pub fn new(
         a: u8,
         b: u8,
@@ -82,6 +82,10 @@ impl Histogram {
     }
 
     /// Get access to the raw buckets in the live histogram.
+    ///
+    /// This is useful if you need access to the raw bucket counts or if you are
+    /// planning to update from some external source that uses the same
+    /// bucketing strategy. Be sure to use with `snapshot()`.
     pub fn as_slice(&self) -> &[AtomicU64] {
         self.live.as_slice()
     }
@@ -247,6 +251,14 @@ impl Histogram {
             }
         }
     }
+
+    /// Causes the histogram window to slide forward to the current time, if
+    /// necessary.
+    ///
+    /// This is useful if you are updating the live buckets directly.
+    pub fn snapshot(&self) {
+        self.tick_to(Instant::now());
+    }
 }
 
 #[cfg(test)]
@@ -263,20 +275,20 @@ mod test {
         let h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
             .expect("couldn't make histogram");
         let d = h
-            .distribution_last(Duration::from_nanos(10_000_000))
+            .distribution_last(Duration::from_millis(10))
             .expect("failed to get distribution");
         assert!(d.percentile(100.0).is_err());
 
         let _ = h.increment(100);
         let d = h
-            .distribution_last(Duration::from_nanos(10_000_000))
+            .distribution_last(Duration::from_millis(10))
             .expect("failed to get distribution");
         assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
 
         // long sleep, but ensures we don't have weird timing issues in CI
         std::thread::sleep(core::time::Duration::from_millis(20));
         let d = h
-            .distribution_last(Duration::from_nanos(10_000_000))
+            .distribution_last(Duration::from_millis(10))
             .expect("failed to get distribution");
         assert!(
             d.percentile(100.0).is_err(),

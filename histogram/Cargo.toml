@@ -15,3 +15,10 @@ thiserror = "1.0.47"
 
 [features]
 serde = ["dep:serde"]
+
+[[bench]]
+name = "histogram"
+harness = false
+
+[dev-dependencies]
+criterion = "0.3"

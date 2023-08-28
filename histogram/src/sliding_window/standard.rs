@@ -41,7 +41,7 @@ impl Histogram {
     /// * `n` must be less than or equal to 64
     /// * `n` must be greater than `a + b`
     /// * `interval` in nanoseconds must fit within a `u64`
-    /// * `interval` must be at least 1 microsecond
+    /// * `interval` must be at least 1 millisecond
     pub fn new(
         a: u8,
         b: u8,
@@ -72,6 +72,21 @@ impl Histogram {
             live,
             snapshots: snapshots.into(),
         })
+    }
+
+    /// Get access to the raw buckets in the live histogram.
+    ///
+    /// This is useful if you need access to the raw bucket counts.
+    pub fn as_slice(&self) -> &[u64] {
+        self.live.as_slice()
+    }
+
+    /// Get access to the raw buckets in the live histogram.
+    ///
+    /// This is useful if you are planning to update from some external source
+    /// that uses the same bucketing strategy. Be sure to use with `snapshot()`.
+    pub fn as_mut_slice(&mut self) -> &mut [u64] {
+        self.live.as_mut_slice()
     }
 
     /// Increment the bucket that contains the value by some count.
@@ -227,6 +242,14 @@ impl Histogram {
         let dst = self.snapshots[index].as_mut_slice();
 
         dst.copy_from_slice(src);
+    }
+
+    /// Causes the histogram window to slide forward to the current time, if
+    /// necessary.
+    ///
+    /// This is useful if you are updating the live buckets directly.
+    pub fn snapshot(&mut self) {
+        self.tick_to(Instant::now());
     }
 }
 
