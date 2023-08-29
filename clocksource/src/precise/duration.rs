@@ -37,7 +37,7 @@ impl Duration {
     /// Create a new `Duration` from a whole number of milliseconds.
     pub const fn from_millis(millis: u32) -> Self {
         Self {
-            ns: millis as u64 * Self::MILLISECOND.as_nanos()
+            ns: millis as u64 * Self::MILLISECOND.as_nanos(),
         }
     }
 
@@ -57,7 +57,7 @@ impl Duration {
     /// Create a new `Duration` from a whole number of microseconds.
     pub const fn from_micros(micros: u32) -> Self {
         Self {
-            ns: micros as u64 * Self::MICROSECOND.as_nanos()
+            ns: micros as u64 * Self::MICROSECOND.as_nanos(),
         }
     }
 
