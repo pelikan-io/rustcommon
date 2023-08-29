@@ -9,7 +9,7 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-clocksource = { version = "0.7.0", path = "../clocksource" }
+clocksource = { version = "0.7.1", path = "../clocksource" }
 serde = { version = "1.0.144", features = ["derive"], optional = true }
 thiserror = "1.0.47"
 
