@@ -153,8 +153,13 @@ impl Common {
 
         let interval: u128 = interval.as_nanos();
 
-        assert!(interval <= u64::MAX.into());
-        assert!(interval >= Duration::MILLISECOND.as_nanos().into());
+        if interval >= Duration::SECOND.as_nanos() as u128 * 3600 {
+            return Err(BuildError::IntervalTooLong);
+        }
+
+        if interval < Duration::MILLISECOND.as_nanos() as u128 {
+            return Err(BuildError::IntervalTooShort);
+        }
 
         let span = Duration::from_nanos(interval as u64 * slices as u64);
         let interval = Duration::from_nanos(interval as u64);

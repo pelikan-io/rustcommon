@@ -9,6 +9,10 @@ pub enum BuildError {
     MaxPowerTooLow,
     #[error("boxed slice length does not match the config")]
     FromRawWrongLength,
+    #[error("sliding window interval cannot be greater than 1 hour")]
+    IntervalTooLong,
+    #[error("sliding window interval cannot be less than than 1 millisecond")]
+    IntervalTooShort,
 }
 
 /// Errors returned for operations on histograms.

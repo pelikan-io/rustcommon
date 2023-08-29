@@ -38,19 +38,6 @@ fn histogram_atomic(c: &mut Criterion) {
 }
 
 fn sliding_window(c: &mut Criterion) {
-    // microsecond resolution
-
-    let mut histogram =
-        histogram::sliding_window::Histogram::new(0, 7, 64, Duration::from_micros(1), 100).unwrap();
-
-    let mut group = c.benchmark_group("histogram::sliding_window/microseconds");
-    group.throughput(Throughput::Elements(1));
-    group.bench_function("increment/1", |b| b.iter(|| histogram.increment(1)));
-    group.bench_function("increment/max", |b| {
-        b.iter(|| histogram.increment(u64::MAX))
-    });
-    group.finish();
-
     // millisecond resolution
 
     let mut histogram =
@@ -79,16 +66,6 @@ fn sliding_window(c: &mut Criterion) {
 }
 
 fn sliding_window_atomic(c: &mut Criterion) {
-    // // microsecond resolution
-
-    // let histogram = histogram::sliding_window::atomic::Histogram::new(0,7,64, Duration::from_micros(1), 100).unwrap();
-
-    // let mut group = c.benchmark_group("histogram::sliding_window::atomic/microseconds");
-    // group.throughput(Throughput::Elements(1));
-    // group.bench_function("increment/1", |b| b.iter(|| histogram.increment(1)));
-    // group.bench_function("increment/max", |b| b.iter(|| histogram.increment(u64::MAX)));
-    // group.finish();
-
     // millisecond resolution
 
     let histogram =
