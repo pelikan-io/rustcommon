@@ -35,6 +35,13 @@ impl Duration {
     }
 
     /// Create a new `Duration` from a whole number of milliseconds.
+    pub const fn from_millis(millis: u32) -> Self {
+        Self {
+            ns: millis as u64 * Self::MILLISECOND.as_nanos(),
+        }
+    }
+
+    /// Create a new `Duration` from a whole number of milliseconds.
     ///
     /// *Note*: this will return an error on overflow.
     pub const fn try_from_millis(millis: u64) -> Result<Self, TryFromError> {
@@ -48,9 +55,16 @@ impl Duration {
     }
 
     /// Create a new `Duration` from a whole number of microseconds.
+    pub const fn from_micros(micros: u32) -> Self {
+        Self {
+            ns: micros as u64 * Self::MICROSECOND.as_nanos(),
+        }
+    }
+
+    /// Create a new `Duration` from a whole number of microseconds.
     ///
     /// *Note*: this will return an error on overflow.
-    pub const fn from_micros(micros: u64) -> Result<Self, TryFromError> {
+    pub const fn try_from_micros(micros: u64) -> Result<Self, TryFromError> {
         if let Some(ns) = micros.checked_mul(Self::MICROSECOND.as_nanos()) {
             Ok(Self { ns })
         } else {
