@@ -1,14 +1,8 @@
 use core::time::Duration;
-use criterion::Throughput;
-use histogram::atomic::Histogram as AtomicHistogram;
-use histogram::Histogram;
-
-// use criterion::BenchmarkId;
-use criterion::Criterion;
-use criterion::{criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 
 fn histogram(c: &mut Criterion) {
-    let mut histogram = Histogram::new(0, 7, 64).unwrap();
+    let mut histogram = histogram::Histogram::new(0, 7, 64).unwrap();
 
     let mut group = c.benchmark_group("histogram");
     group.throughput(Throughput::Elements(1));
@@ -23,7 +17,7 @@ fn histogram(c: &mut Criterion) {
 }
 
 fn histogram_atomic(c: &mut Criterion) {
-    let histogram = AtomicHistogram::new(0, 7, 64).unwrap();
+    let histogram = histogram::atomic::Histogram::new(0, 7, 64).unwrap();
 
     let mut group = c.benchmark_group("histogram::atomic");
     group.throughput(Throughput::Elements(1));
