@@ -1,4 +1,4 @@
-//! This crate contains a collection of histogram datastructures to help count
+//! This crate contains a collection of histogram data structures to help count
 //! occurrences of values and report on their distribution.
 //!
 //! There are several implementations to choose from, with each targeting
@@ -66,12 +66,11 @@ trait _Histograms {
     }
 
     fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
-        // get the total count across all buckets as a u64
+        // get the total count across all buckets
         let total: u128 = self.total_count();
 
         // if the histogram is empty, then we should return an error
         if total == 0_u128 {
-            // TODO(brian): this should return an error =)
             return Err(Error::Empty);
         }
 
@@ -79,70 +78,37 @@ trait _Histograms {
         let mut percentiles = percentiles.to_vec();
         percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        let mut result = Vec::new();
+        // get a sorted list of the counts needed for each percentile
+        let counts: Vec<u128> = percentiles
+            .iter()
+            .map(|p| (p / 100.0 * total as f64).ceil() as u128)
+            .collect();
 
-        let mut have = 0_u128;
-        let mut percentile_idx = 0_usize;
-        let mut current_idx = 0_usize;
-        let mut max_idx = 0_usize;
+        // a vec to hold the results
+        let mut result = Vec::with_capacity(percentiles.len());
 
-        // outer loop walks through the requested percentiles
-        'outer: loop {
-            // if we have all the requested percentiles, return the result
-            if percentile_idx >= percentiles.len() {
-                return Ok(result);
-            }
+        let mut percentile_idx = 0;
+        let mut bucket_idx = 0;
+        let mut partial_sum = self.get_count(bucket_idx) as u128;
 
-            // calculate the count we need to have for the requested percentile
+        while percentile_idx < percentiles.len() {
             let percentile = percentiles[percentile_idx];
-            let needed = (percentile / 100.0 * total as f64).ceil() as u128;
+            let count = counts[percentile_idx];
 
-            // if the count is already that high, push to the results and
-            // continue onto the next percentile
-            if have >= needed {
-                result.push((percentile, self.get_bucket(current_idx).unwrap()));
+            // repeatedly push percentile-bucket pairs into the result while our
+            // current partial sum fulfills the count needed for each percentile
+            if partial_sum >= count {
+                result.push((percentile, self.get_bucket(bucket_idx).unwrap()));
                 percentile_idx += 1;
                 continue;
             }
 
-            // the inner loop walks through the buckets
-            'inner: loop {
-                // if we've run out of buckets, break the outer loop
-                if current_idx >= self.config().total_bins() {
-                    break 'outer;
-                }
-
-                // get the current count for the current bucket
-                let current_count = self.get_count(current_idx);
-
-                // track the highest index with a non-zero count
-                if current_count > 0 {
-                    max_idx = current_idx;
-                }
-
-                // increment what we have by the current bucket count
-                have += current_count as u128;
-
-                // if this is enough for the requested percentile, push to the
-                // results and break the inner loop to move onto the next
-                // percentile
-                if have >= needed {
-                    result.push((percentile, self.get_bucket(current_idx).unwrap()));
-                    percentile_idx += 1;
-                    current_idx += 1;
-                    break 'inner;
-                }
-
-                // increment the current_idx so we continue from the next bucket
-                current_idx += 1;
+            // increment the partial sum by the count of the next bucket
+            bucket_idx += 1;
+            if bucket_idx >= self.config().total_bins() {
+                break;
             }
-        }
-
-        // fill the remaining percentiles with the highest non-zero bucket's
-        // value. this is possible if the histogram has been modified while we
-        // are still iterating.
-        for percentile in percentiles.iter().skip(result.len()) {
-            result.push((*percentile, self.get_bucket(max_idx).unwrap()));
+            partial_sum += self.get_count(bucket_idx) as u128;
         }
 
         Ok(result)
