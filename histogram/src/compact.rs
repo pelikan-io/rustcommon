@@ -292,6 +292,12 @@ impl<'de> serde::Deserialize<'de> for Histogram {
                     ));
                 }
 
+                if index.len() != count.len() {
+                    return Err(serde::de::Error::custom(
+                        "index and count vectors have mismatched lengths",
+                    ));
+                }
+
                 Ok(Histogram {
                     a,
                     b,
