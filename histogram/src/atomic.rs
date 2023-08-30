@@ -109,6 +109,19 @@ impl Histogram {
             bucket.store(0, Ordering::Relaxed);
         }
     }
+
+    /// Merge the counts from the other histogram into this histogram.
+    pub fn merge(&self, other: &Histogram) -> Result<(), Error> {
+        if self.config.params() != other.config.params() {
+            return Err(Error::MergeIncompatibleParameters);
+        }
+
+        for (this, other) in self.buckets.iter().zip(other.buckets.iter()) {
+            this.fetch_add(other.load(Ordering::Relaxed), Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
 }
 
 impl<'a> IntoIterator for &'a Histogram {

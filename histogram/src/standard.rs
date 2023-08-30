@@ -96,6 +96,19 @@ impl Histogram {
             *bucket = 0;
         }
     }
+
+    /// Merge the counts from the other histogram into this histogram.
+    pub fn merge(&mut self, other: &Histogram) -> Result<(), Error> {
+        if self.config.params() != other.config.params() {
+            return Err(Error::MergeIncompatibleParameters);
+        }
+
+        for (this, other) in self.buckets.iter_mut().zip(other.buckets.iter()) {
+            *this = this.wrapping_add(*other);
+        }
+
+        Ok(())
+    }
 }
 
 impl<'a> IntoIterator for &'a Histogram {

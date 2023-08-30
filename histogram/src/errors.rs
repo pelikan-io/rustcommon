@@ -26,4 +26,6 @@ pub enum Error {
     OutOfRange,
     #[error("the value is outside of the sliding window")]
     OutOfSlidingWindow,
+    #[error("the histogram parameters are incompatible")]
+    MergeIncompatibleParameters,
 }
