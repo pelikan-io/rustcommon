@@ -270,30 +270,30 @@ mod test {
         assert_eq!(std::mem::size_of::<Histogram>(), 128);
     }
 
-    // #[test]
-    // fn smoke() {
-    //     let h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
-    //         .expect("couldn't make histogram");
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(10))
-    //         .expect("failed to get distribution");
-    //     assert!(d.percentile(100.0).is_err());
+    #[test]
+    fn smoke() {
+        let h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
+            .expect("couldn't make histogram");
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert!(d.percentile(100.0).is_err());
 
-    //     let _ = h.increment(100);
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(10))
-    //         .expect("failed to get distribution");
-    //     assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
+        let _ = h.increment(100);
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
 
-    //     // long sleep, but ensures we don't have weird timing issues in CI
-    //     std::thread::sleep(core::time::Duration::from_millis(20));
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(10))
-    //         .expect("failed to get distribution");
-    //     assert!(
-    //         d.percentile(100.0).is_err(),
-    //         "percentile is: {}",
-    //         d.percentile(100.0).unwrap().upper()
-    //     );
-    // }
+        // long sleep, but ensures we don't have weird timing issues in CI
+        std::thread::sleep(core::time::Duration::from_millis(20));
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert!(
+            d.percentile(100.0).is_err(),
+            "percentile is: {}",
+            d.percentile(100.0).unwrap().upper()
+        );
+    }
 }
