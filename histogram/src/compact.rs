@@ -8,7 +8,7 @@ use core::sync::atomic::Ordering;
 /// A compact histogram which stores bucket indices and counts to efficiently
 /// represent a sparse histogram.
 #[derive(Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Histogram {
     a: u8,
     b: u8,
@@ -80,5 +80,264 @@ impl From<&crate::atomic::Histogram> for Histogram {
             index,
             count,
         }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Histogram {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[allow(non_camel_case_types)]
+        #[doc(hidden)]
+        #[derive(serde::Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            A,
+            B,
+            N,
+            Index,
+            Count,
+            ignore,
+        }
+        // #[doc(hidden)]
+        // struct FieldVisitor;
+        // impl<'de> serde::de::Visitor<'de> for FieldVisitor {
+        //     type Value = Field;
+        //     fn expecting(
+        //         &self,
+        //         formatter: &mut std::fmt::Formatter,
+        //     ) -> std::fmt::Result {
+        //         std::fmt::Formatter::write_str(
+        //             formatter,
+        //             "field identifier",
+        //         )
+        //     }
+        //     fn visit_u64<E>(
+        //         self,
+        //         value: u64,
+        //     ) -> Result<Self::Value, E>
+        //     where
+        //         E: serde::de::Error,
+        //     {
+        //         match value {
+        //             0u64 => Ok(Field::A),
+        //             1u64 => Ok(Field::B),
+        //             2u64 => Ok(Field::N),
+        //             3u64 => Ok(Field::Index),
+        //             4u64 => Ok(Field::Count),
+        //             _ => Ok(Field::ignore),
+        //         }
+        //     }
+        //     fn visit_str<E>(
+        //         self,
+        //         value: &str,
+        //     ) -> Result<Self::Value, E>
+        //     where
+        //         E: serde::de::Error,
+        //     {
+        //         match value {
+        //             "a" => Ok(Field::A),
+        //             "b" => Ok(Field::B),
+        //             "n" => Ok(Field::N),
+        //             "index" => Ok(Field::Index),
+        //             "count" => Ok(Field::Count),
+        //             _ => Ok(Field::ignore),
+        //         }
+        //     }
+        //     fn visit_bytes<E>(
+        //         self,
+        //         value: &[u8],
+        //     ) -> Result<Self::Value, E>
+        //     where
+        //         E: serde::de::Error,
+        //     {
+        //         match value {
+        //             b"a" => Ok(Field::A),
+        //             b"b" => Ok(Field::B),
+        //             b"n" => Ok(Field::N),
+        //             b"index" => Ok(Field::Index),
+        //             b"count" => Ok(Field::Count),
+        //             _ => Ok(Field::ignore),
+        //         }
+        //     }
+        // }
+        // impl<'de> serde::Deserialize<'de> for Field {
+        //     #[inline]
+        //     fn deserialize<D>(
+        //         deserializer: D,
+        //     ) -> Result<Self, D::Error>
+        //     where
+        //         D: serde::Deserializer<'de>,
+        //     {
+        //         serde::Deserializer::deserialize_identifier(
+        //             deserializer,
+        //             FieldVisitor,
+        //         )
+        //     }
+        // }
+        #[doc(hidden)]
+        struct Visitor<'de> {
+            marker: core::marker::PhantomData<Histogram>,
+            lifetime: core::marker::PhantomData<&'de ()>,
+        }
+        impl<'de> serde::de::Visitor<'de> for Visitor<'de> {
+            type Value = Histogram;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::Formatter::write_str(formatter, "struct Histogram")
+            }
+            #[inline]
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let a = match serde::de::SeqAccess::next_element::<u8>(&mut seq)? {
+                    Some(value) => value,
+                    None => {
+                        return Err(serde::de::Error::invalid_length(
+                            0usize,
+                            &"struct Histogram with 5 elements",
+                        ));
+                    }
+                };
+                let b = match serde::de::SeqAccess::next_element::<u8>(&mut seq)? {
+                    Some(value) => value,
+                    None => {
+                        return Err(serde::de::Error::invalid_length(
+                            1usize,
+                            &"struct Histogram with 5 elements",
+                        ));
+                    }
+                };
+                let n = match serde::de::SeqAccess::next_element::<u8>(&mut seq)? {
+                    Some(value) => value,
+                    None => {
+                        return Err(serde::de::Error::invalid_length(
+                            2usize,
+                            &"struct Histogram with 5 elements",
+                        ));
+                    }
+                };
+                let index = match serde::de::SeqAccess::next_element::<Vec<usize>>(&mut seq)? {
+                    Some(value) => value,
+                    None => {
+                        return Err(serde::de::Error::invalid_length(
+                            3usize,
+                            &"struct Histogram with 5 elements",
+                        ));
+                    }
+                };
+                let count = match serde::de::SeqAccess::next_element::<Vec<u64>>(&mut seq)? {
+                    Some(value) => value,
+                    None => {
+                        return Err(serde::de::Error::invalid_length(
+                            4usize,
+                            &"struct Histogram with 5 elements",
+                        ));
+                    }
+                };
+                Ok(Histogram {
+                    a,
+                    b,
+                    n,
+                    index,
+                    count,
+                })
+            }
+            #[inline]
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut a: Option<u8> = None;
+                let mut b: Option<u8> = None;
+                let mut n: Option<u8> = None;
+                let mut index: Option<Vec<usize>> = None;
+                let mut count: Option<Vec<u64>> = None;
+                while let Some(key) = serde::de::MapAccess::next_key::<Field>(&mut map)? {
+                    match key {
+                        Field::A => {
+                            if a.is_some() {
+                                return Err(<A::Error as serde::de::Error>::duplicate_field("a"));
+                            }
+                            a = Some(serde::de::MapAccess::next_value::<u8>(&mut map)?);
+                        }
+                        Field::B => {
+                            if b.is_some() {
+                                return Err(<A::Error as serde::de::Error>::duplicate_field("b"));
+                            }
+                            b = Some(serde::de::MapAccess::next_value::<u8>(&mut map)?);
+                        }
+                        Field::N => {
+                            if n.is_some() {
+                                return Err(<A::Error as serde::de::Error>::duplicate_field("n"));
+                            }
+                            n = Some(serde::de::MapAccess::next_value::<u8>(&mut map)?);
+                        }
+                        Field::Index => {
+                            if index.is_some() {
+                                return Err(<A::Error as serde::de::Error>::duplicate_field(
+                                    "index",
+                                ));
+                            }
+                            index = Some(serde::de::MapAccess::next_value::<Vec<usize>>(&mut map)?);
+                        }
+                        Field::Count => {
+                            if count.is_some() {
+                                return Err(<A::Error as serde::de::Error>::duplicate_field(
+                                    "count",
+                                ));
+                            }
+                            count = Some(serde::de::MapAccess::next_value::<Vec<u64>>(&mut map)?);
+                        }
+                        _ => {
+                            let _ = serde::de::MapAccess::next_value::<serde::de::IgnoredAny>(
+                                &mut map,
+                            )?;
+                        }
+                    }
+                }
+
+                let a = a.ok_or_else(|| serde::de::Error::missing_field("a"))?;
+                let b = b.ok_or_else(|| serde::de::Error::missing_field("b"))?;
+                let n = n.ok_or_else(|| serde::de::Error::missing_field("n"))?;
+                let index = index.ok_or_else(|| serde::de::Error::missing_field("index"))?;
+                let count = count.ok_or_else(|| serde::de::Error::missing_field("count"))?;
+
+                if n > 64 {
+                    return Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Unsigned(n.into()),
+                        &"n must be in the range 0..=64",
+                    ));
+                }
+
+                if n < a + b {
+                    return Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Unsigned(n.into()),
+                        &"n must be greater than a + b",
+                    ));
+                }
+
+                Ok(Histogram {
+                    a,
+                    b,
+                    n,
+                    index,
+                    count,
+                })
+            }
+        }
+        #[doc(hidden)]
+        const FIELDS: &[&str] = &["a", "b", "n", "index", "count"];
+        serde::Deserializer::deserialize_struct(
+            deserializer,
+            "Histogram",
+            FIELDS,
+            Visitor {
+                marker: core::marker::PhantomData::<Histogram>,
+                lifetime: core::marker::PhantomData,
+            },
+        )
     }
 }
