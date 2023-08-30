@@ -35,6 +35,27 @@ impl _Histograms for Histogram {
     }
 }
 
+impl From<crate::Histogram> for Histogram {
+    fn from(other: crate::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+        let mut index = Vec::new();
+        let mut count = Vec::new();
+
+        for (i, c) in other.buckets.iter().enumerate().filter(|(_i, c)| **c != 0) {
+            index.push(i);
+            count.push(*c);
+        }
+
+        Self {
+            a,
+            b,
+            n,
+            index,
+            count,
+        }
+    }
+}
+
 impl From<&crate::Histogram> for Histogram {
     fn from(other: &crate::Histogram) -> Self {
         let (a, b, n) = other.config().params();
@@ -44,6 +65,33 @@ impl From<&crate::Histogram> for Histogram {
         for (i, c) in other.buckets.iter().enumerate().filter(|(_i, c)| **c != 0) {
             index.push(i);
             count.push(*c);
+        }
+
+        Self {
+            a,
+            b,
+            n,
+            index,
+            count,
+        }
+    }
+}
+
+impl From<crate::atomic::Histogram> for Histogram {
+    fn from(other: crate::atomic::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+        let mut index = Vec::new();
+        let mut count = Vec::new();
+
+        for (i, c) in other
+            .buckets
+            .iter()
+            .map(|c| c.load(Ordering::Relaxed))
+            .enumerate()
+            .filter(|(_i, c)| *c != 0)
+        {
+            index.push(i);
+            count.push(c);
         }
 
         Self {
@@ -90,7 +138,6 @@ impl<'de> serde::Deserialize<'de> for Histogram {
         D: serde::Deserializer<'de>,
     {
         #[allow(non_camel_case_types)]
-        #[doc(hidden)]
         #[derive(serde::Deserialize)]
         #[serde(field_identifier, rename_all = "lowercase")]
         enum Field {
@@ -101,87 +148,12 @@ impl<'de> serde::Deserialize<'de> for Histogram {
             Count,
             ignore,
         }
-        // #[doc(hidden)]
-        // struct FieldVisitor;
-        // impl<'de> serde::de::Visitor<'de> for FieldVisitor {
-        //     type Value = Field;
-        //     fn expecting(
-        //         &self,
-        //         formatter: &mut std::fmt::Formatter,
-        //     ) -> std::fmt::Result {
-        //         std::fmt::Formatter::write_str(
-        //             formatter,
-        //             "field identifier",
-        //         )
-        //     }
-        //     fn visit_u64<E>(
-        //         self,
-        //         value: u64,
-        //     ) -> Result<Self::Value, E>
-        //     where
-        //         E: serde::de::Error,
-        //     {
-        //         match value {
-        //             0u64 => Ok(Field::A),
-        //             1u64 => Ok(Field::B),
-        //             2u64 => Ok(Field::N),
-        //             3u64 => Ok(Field::Index),
-        //             4u64 => Ok(Field::Count),
-        //             _ => Ok(Field::ignore),
-        //         }
-        //     }
-        //     fn visit_str<E>(
-        //         self,
-        //         value: &str,
-        //     ) -> Result<Self::Value, E>
-        //     where
-        //         E: serde::de::Error,
-        //     {
-        //         match value {
-        //             "a" => Ok(Field::A),
-        //             "b" => Ok(Field::B),
-        //             "n" => Ok(Field::N),
-        //             "index" => Ok(Field::Index),
-        //             "count" => Ok(Field::Count),
-        //             _ => Ok(Field::ignore),
-        //         }
-        //     }
-        //     fn visit_bytes<E>(
-        //         self,
-        //         value: &[u8],
-        //     ) -> Result<Self::Value, E>
-        //     where
-        //         E: serde::de::Error,
-        //     {
-        //         match value {
-        //             b"a" => Ok(Field::A),
-        //             b"b" => Ok(Field::B),
-        //             b"n" => Ok(Field::N),
-        //             b"index" => Ok(Field::Index),
-        //             b"count" => Ok(Field::Count),
-        //             _ => Ok(Field::ignore),
-        //         }
-        //     }
-        // }
-        // impl<'de> serde::Deserialize<'de> for Field {
-        //     #[inline]
-        //     fn deserialize<D>(
-        //         deserializer: D,
-        //     ) -> Result<Self, D::Error>
-        //     where
-        //         D: serde::Deserializer<'de>,
-        //     {
-        //         serde::Deserializer::deserialize_identifier(
-        //             deserializer,
-        //             FieldVisitor,
-        //         )
-        //     }
-        // }
-        #[doc(hidden)]
+
         struct Visitor<'de> {
             marker: core::marker::PhantomData<Histogram>,
             lifetime: core::marker::PhantomData<&'de ()>,
         }
+
         impl<'de> serde::de::Visitor<'de> for Visitor<'de> {
             type Value = Histogram;
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -245,6 +217,7 @@ impl<'de> serde::Deserialize<'de> for Histogram {
                     count,
                 })
             }
+
             #[inline]
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where
@@ -328,8 +301,9 @@ impl<'de> serde::Deserialize<'de> for Histogram {
                 })
             }
         }
-        #[doc(hidden)]
+
         const FIELDS: &[&str] = &["a", "b", "n", "index", "count"];
+
         serde::Deserializer::deserialize_struct(
             deserializer,
             "Histogram",
@@ -339,5 +313,50 @@ impl<'de> serde::Deserialize<'de> for Histogram {
                 lifetime: core::marker::PhantomData,
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_ser() {
+        let mut h = crate::Histogram::new(0, 7, 64).unwrap();
+
+        let c: Histogram = (&h).into();
+
+        assert_eq!(
+            serde_json::to_string(&c).unwrap(),
+            "{\"a\":0,\"b\":7,\"n\":64,\"index\":[],\"count\":[]}"
+        );
+
+        let _ = h.increment(0);
+
+        let c: Histogram = (&h).into();
+
+        assert_eq!(
+            serde_json::to_string(&c).unwrap(),
+            "{\"a\":0,\"b\":7,\"n\":64,\"index\":[0],\"count\":[1]}"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_de() {
+        assert!(serde_json::from_str::<Histogram>(
+            "{\"a\":0,\"b\":7,\"n\":64,\"index\":[],\"count\":[]}"
+        )
+        .is_ok());
+
+        assert!(serde_json::from_str::<Histogram>(
+            "{\"a\":0,\"b\":7,\"n\":0,\"index\":[],\"count\":[]}"
+        )
+        .is_err());
+        assert!(serde_json::from_str::<Histogram>(
+            "{\"a\":0,\"b\":7,\"n\":65,\"index\":[],\"count\":[]}"
+        )
+        .is_err());
     }
 }
