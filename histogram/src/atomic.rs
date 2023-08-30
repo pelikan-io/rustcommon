@@ -142,6 +142,36 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+impl From<&crate::Histogram> for Histogram {
+    fn from(other: &crate::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+
+        let this = Histogram::new(a, b, n).unwrap();
+
+        for (index, count) in other.buckets.iter().enumerate() {
+            if *count > 0 {
+                this.buckets[index].store(*count, Ordering::Relaxed);
+            }
+        }
+
+        this
+    }
+}
+
+impl From<&crate::compact::Histogram> for Histogram {
+    fn from(other: &crate::compact::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+
+        let this = Histogram::new(a, b, n).unwrap();
+
+        for (index, count) in other.index.iter().zip(other.count.iter()) {
+            this.buckets[*index].store(*count, Ordering::Relaxed);
+        }
+
+        this
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

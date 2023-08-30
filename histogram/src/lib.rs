@@ -102,7 +102,10 @@ trait _Histograms {
             // repeatedly push percentile-bucket pairs into the result while our
             // current partial sum fulfills the count needed for each percentile
             if partial_sum >= counts[percentile_idx] {
-                result.push((percentiles[percentile_idx], self.get_bucket(bucket_idx).unwrap()));
+                result.push((
+                    percentiles[percentile_idx],
+                    self.get_bucket(bucket_idx).unwrap(),
+                ));
                 percentile_idx += 1;
                 continue;
             }

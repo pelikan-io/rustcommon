@@ -7,25 +7,14 @@ use core::sync::atomic::Ordering;
 
 /// A compact histogram which stores bucket indices and counts to efficiently
 /// represent a sparse histogram.
-#[cfg(feature = "serde")]
-#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Histogram {
     a: u8,
     b: u8,
     n: u8,
-    index: Vec<usize>,
-    count: Vec<u64>,
-}
-
-/// A compact histogram which stores bucket indices and counts to efficiently
-/// represent a sparse histogram.
-#[cfg(not(feature = "serde"))]
-pub struct Histogram {
-    a: u8,
-    b: u8,
-    n: u8,
-    index: Vec<usize>,
-    count: Vec<u64>,
+    pub(crate) index: Vec<usize>,
+    pub(crate) count: Vec<u64>,
 }
 
 impl _Histograms for Histogram {

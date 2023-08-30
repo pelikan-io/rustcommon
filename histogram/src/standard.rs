@@ -129,6 +129,20 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+impl From<&crate::compact::Histogram> for Histogram {
+    fn from(other: &crate::compact::Histogram) -> Self {
+        let (a, b, n) = other.config().params();
+
+        let mut this = Histogram::new(a, b, n).unwrap();
+
+        for (index, count) in other.index.iter().zip(other.count.iter()) {
+            this.buckets[*index] = *count;
+        }
+
+        this
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
