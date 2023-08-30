@@ -10,7 +10,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 clocksource = { version = "0.7.1", path = "../clocksource" }
-serde = { version = "1.0.144", features = ["derive"], optional = true }
+serde = { version = "1.0.188", features = ["derive"], optional = true }
 thiserror = "1.0.47"
 
 [features]
@@ -22,5 +22,5 @@ name = "histogram"
 harness = false
 
 [dev-dependencies]
-criterion = "0.3"
-serde_json = "*"
+criterion = "0.5.1"
+serde_json = "1.0.105"
