@@ -68,9 +68,6 @@ impl Config {
         (self.a as u8, self.b as u8, self.n as u8)
     }
 
-    /// # Panics
-    /// This function will panic if the value is larger than the max configured
-    /// value for this histogram.
     pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
         if value < self.cutoff_value {
             return Ok((value >> self.a) as usize);
