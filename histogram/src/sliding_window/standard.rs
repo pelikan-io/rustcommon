@@ -209,39 +209,41 @@ impl Histogram {
 
     /// Moves the window forward, if necessary.
     fn tick_to(&mut self, instant: Instant) {
-        let tick_at = self.tick_at;
+        loop {
+            let tick_at = self.tick_at;
 
-        // fast path, we just update the live histogram
-        if instant < tick_at {
-            // if instant < (tick_at - self.resolution) {
-            // We *could* attempt to record into prior snapshots. But
-            // for simplicity and to avoid changing past readings, we
-            // will simply record into the live histogram anyway. We
-            // might want to raise this as an error.
-            // }
+            // fast path, we just update the live histogram
+            if instant < tick_at {
+                // if instant < (tick_at - self.resolution) {
+                // We *could* attempt to record into prior snapshots. But
+                // for simplicity and to avoid changing past readings, we
+                // will simply record into the live histogram anyway. We
+                // might want to raise this as an error.
+                // }
 
-            return;
+                return;
+            }
+
+            // rarer path where we need to snapshot
+            //
+            // Even if we are behind by multiple ticks, we will only snapshot
+            // into the most recent snapshot position. This ensures that we will
+            // not change past readings. It also simplifies things and reduces
+            // the number of load/store operations.
+
+            let tick_next = self.tick_at + self.common.interval();
+
+            self.tick_at = tick_next;
+
+            // calculate the indices for the previous start and end snapshots
+            let index = self.index(tick_at).unwrap();
+
+            // we copy from the live slice into the start slice (since it's the oldest)
+            let src = self.live.as_slice();
+            let dst = self.snapshots[index].as_mut_slice();
+
+            dst.copy_from_slice(src);
         }
-
-        // rarer path where we need to snapshot
-        //
-        // Even if we are behind by multiple ticks, we will only snapshot
-        // into the most recent snapshot position. This ensures that we will
-        // not change past readings. It also simplifies things and reduces
-        // the number of load/store operations.
-
-        let tick_next = self.tick_at + self.common.interval();
-
-        self.tick_at = tick_next;
-
-        // calculate the indices for the previous start and end snapshots
-        let index = self.index(tick_at).unwrap();
-
-        // we copy from the live slice into the start slice (since it's the oldest)
-        let src = self.live.as_slice();
-        let dst = self.snapshots[index].as_mut_slice();
-
-        dst.copy_from_slice(src);
     }
 
     /// Causes the histogram window to slide forward to the current time, if
@@ -262,30 +264,30 @@ mod test {
         assert_eq!(std::mem::size_of::<Histogram>(), 128);
     }
 
-    // #[test]
-    // fn smoke() {
-    //     let mut h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
-    //         .expect("couldn't make histogram");
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(10))
-    //         .expect("failed to get distribution");
-    //     assert!(d.percentile(100.0).is_err());
+    #[test]
+    fn smoke() {
+        let mut h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
+            .expect("couldn't make histogram");
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert!(d.percentile(100.0).is_err());
 
-    //     let _ = h.increment(100);
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(10))
-    //         .expect("failed to get distribution");
-    //     assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
+        let _ = h.increment(100);
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert_eq!(d.percentile(100.0).map(|b| b.upper()), Ok(100));
 
-    //     // long sleep, but ensures we don't have weird timing issues in CI
-    //     std::thread::sleep(core::time::Duration::from_millis(20));
-    //     let d = h
-    //         .distribution_last(Duration::from_millis(1))
-    //         .expect("failed to get distribution");
-    //     assert!(
-    //         d.percentile(100.0).is_err(),
-    //         "percentile is: {}",
-    //         d.percentile(100.0).unwrap().upper()
-    //     );
-    // }
+        // long sleep, but ensures we don't have weird timing issues in CI
+        std::thread::sleep(core::time::Duration::from_millis(20));
+        let d = h
+            .distribution_last(Duration::from_millis(10))
+            .expect("failed to get distribution");
+        assert!(
+            d.percentile(100.0).is_err(),
+            "percentile is: {}",
+            d.percentile(100.0).unwrap().upper()
+        );
+    }
 }
