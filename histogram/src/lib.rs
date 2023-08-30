@@ -66,6 +66,13 @@ trait _Histograms {
     }
 
     fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+        // check that all percentiles are valid before doing any real work
+        for percentile in percentiles {
+            if *percentile < 0.0 || *percentile > 100.0 {
+                return Err(Error::InvalidPercentile);
+            }
+        }
+
         // get the total count across all buckets
         let total: u128 = self.total_count();
 
@@ -92,13 +99,10 @@ trait _Histograms {
         let mut partial_sum = self.get_count(bucket_idx) as u128;
 
         while percentile_idx < percentiles.len() {
-            let percentile = percentiles[percentile_idx];
-            let count = counts[percentile_idx];
-
             // repeatedly push percentile-bucket pairs into the result while our
             // current partial sum fulfills the count needed for each percentile
-            if partial_sum >= count {
-                result.push((percentile, self.get_bucket(bucket_idx).unwrap()));
+            if partial_sum >= counts[percentile_idx] {
+                result.push((percentiles[percentile_idx], self.get_bucket(bucket_idx).unwrap()));
                 percentile_idx += 1;
                 continue;
             }

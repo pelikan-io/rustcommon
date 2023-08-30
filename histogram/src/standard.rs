@@ -168,6 +168,9 @@ mod tests {
         assert_eq!(histogram.percentile(99.0).map(|b| b.upper), Ok(99));
         assert_eq!(histogram.percentile(99.9).map(|b| b.upper), Ok(100));
 
+        assert_eq!(histogram.percentile(-1.0), Err(Error::InvalidPercentile));
+        assert_eq!(histogram.percentile(101.0), Err(Error::InvalidPercentile));
+
         let percentiles: Vec<(f64, u64)> = histogram
             .percentiles(&[50.0, 90.0, 99.0, 99.9])
             .unwrap()
