@@ -364,5 +364,9 @@ mod test {
             "{\"a\":0,\"b\":7,\"n\":65,\"index\":[],\"count\":[]}"
         )
         .is_err());
+        assert!(serde_json::from_str::<Histogram>(
+            "{\"a\":0,\"b\":7,\"n\":64,\"index\":[0],\"count\":[]}"
+        )
+        .is_err());
     }
 }
