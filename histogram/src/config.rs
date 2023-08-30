@@ -1,7 +1,7 @@
 use super::{BuildError, Error};
 
 #[derive(Clone, Copy)]
-pub struct Config {
+pub(crate) struct Config {
     max: u64,
     a: u32,
     b: u32,
@@ -28,6 +28,18 @@ impl Config {
         if a + b >= n {
             return Err(BuildError::MaxPowerTooLow);
         }
+
+        // the cutoff is the point at which the linear range divisions and the
+        // logarithmic range subdivisions diverge.
+        //
+        // for example:
+        // when a = 0, the linear range has bins with width 1.
+        // if b = 7 the logarithmic range has 128 subdivisions.
+        // this means that for 0..128 we must be representing the values exactly
+        // but we also represent 128..256 exactly since the subdivisions divide
+        // that range into bins with the same width as the linear portion.
+        //
+        // therefore our cutoff power = a + b + 1
 
         let cutoff_power = a + b + 1;
         let cutoff_value = 2_u64.pow(cutoff_power);
