@@ -13,7 +13,7 @@ macro_rules! benchmark {
         });
 
         group.finish();
-    }
+    };
 }
 
 fn histogram(c: &mut Criterion) {
@@ -46,7 +46,11 @@ fn sliding_window_atomic(c: &mut Criterion) {
     let histogram =
         histogram::sliding_window::atomic::Histogram::new(0, 7, 64, Duration::from_millis(1), 100)
             .unwrap();
-    benchmark!("histogram::sliding_window::atomic/milliseconds", histogram, c);
+    benchmark!(
+        "histogram::sliding_window::atomic/milliseconds",
+        histogram,
+        c
+    );
 
     // second resolution
 
