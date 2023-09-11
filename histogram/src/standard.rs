@@ -1,28 +1,15 @@
-//! A basic histogram.
+//! A basic histogram using plain counters (no atomics).
 
-use crate::{Bucket, BuildError, Config, Error, _Histograms};
+use crate::{Bucket, BuildError, Config, Error};
 
 /// A simple histogram that can be used to track the distribution of occurrences
 /// of quantized u64 values.
 ///
 /// Internally it uses 64bit counters to store the counts for each bucket.
 pub struct Histogram {
-    pub(crate) buckets: Box<[u64]>,
     pub(crate) config: Config,
-}
-
-impl _Histograms for Histogram {
-    fn config(&self) -> Config {
-        self.config
-    }
-
-    fn total_count(&self) -> u128 {
-        self.buckets.iter().map(|v| *v as u128).sum()
-    }
-
-    fn get_count(&self, index: usize) -> u64 {
-        self.buckets[index]
-    }
+    pub(crate) total_count: u128,
+    pub(crate) buckets: Box<[u64]>,
 }
 
 impl Histogram {
@@ -52,6 +39,7 @@ impl Histogram {
     pub fn add(&mut self, value: u64, count: u64) -> Result<(), Error> {
         let index = self.config.value_to_index(value)?;
         self.buckets[index] = self.buckets[index].wrapping_add(count);
+        self.total_count = self.total_count.wrapping_add(count.into());
         Ok(())
     }
 
@@ -59,7 +47,11 @@ impl Histogram {
     pub(crate) fn from_config(config: Config) -> Self {
         let buckets: Box<[u64]> = vec![0; config.total_bins()].into();
 
-        Self { buckets, config }
+        Self {
+            config,
+            total_count: 0,
+            buckets,
+        }
     }
 
     /// Get a reference to the raw counters.
@@ -78,8 +70,54 @@ impl Histogram {
     /// example, the 50th percentile (median) can be found using `50.0`.
     ///
     /// The results will be sorted by the percentile.
-    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
-        <Self as _Histograms>::percentiles(self, percentiles)
+    pub(crate) fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+        // if the histogram is empty, then we should return an error
+        if self.total_count == 0_u128 {
+            return Err(Error::Empty);
+        }
+
+        // sort the requested percentiles so we can find them in a single pass
+        let mut percentiles = percentiles.to_vec();
+        percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        // validate all the percentiles
+        for percentile in &percentiles {
+            if !(0.0..=100.0).contains(percentile) {
+                return Err(Error::InvalidPercentile);
+            }
+        }
+
+        let mut bucket_idx = 0;
+        let mut partial_sum = self.buckets[bucket_idx] as u128;
+
+        let result = percentiles
+            .iter()
+            .filter_map(|percentile| {
+                let count = (percentile / 100.0 * self.total_count as f64).ceil() as u128;
+
+                while bucket_idx < (self.buckets.len() - 1) {
+                    // found the matching bucket index for this percentile
+                    if partial_sum >= count {
+                        return Some((
+                            *percentile,
+                            Bucket {
+                                count: self.buckets[bucket_idx],
+                                lower: self.config.index_to_lower_bound(bucket_idx),
+                                upper: self.config.index_to_upper_bound(bucket_idx),
+                            },
+                        ));
+                    }
+
+                    // otherwise, increment the bucket index, partial sum, and loop
+                    bucket_idx += 1;
+                    partial_sum += self.buckets[bucket_idx] as u128;
+                }
+
+                None
+            })
+            .collect();
+
+        Ok(result)
     }
 
     /// Return a single percentile from this histogram.
@@ -87,14 +125,8 @@ impl Histogram {
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        <Self as _Histograms>::percentile(self, percentile)
-    }
-
-    /// Zeros out all the buckets in the histogram.
-    pub fn clear(&mut self) {
-        for bucket in self.buckets.iter_mut() {
-            *bucket = 0;
-        }
+        self.percentiles(&[percentile])
+            .map(|v| v.first().unwrap().1)
     }
 
     /// Merge the counts from the other histogram into this histogram.
@@ -133,26 +165,19 @@ impl<'a> Iterator for Iter<'a> {
     type Item = Bucket;
 
     fn next(&mut self) -> Option<<Self as std::iter::Iterator>::Item> {
-        let bucket = self.histogram.get_bucket(self.index);
-        if bucket.is_some() {
-            self.index += 1;
+        if self.index >= self.histogram.buckets.len() {
+            return None;
         }
 
-        bucket
-    }
-}
+        let bucket = Bucket {
+            count: self.histogram.buckets[self.index],
+            lower: self.histogram.config.index_to_lower_bound(self.index),
+            upper: self.histogram.config.index_to_upper_bound(self.index),
+        };
 
-impl From<&crate::compact::Histogram> for Histogram {
-    fn from(other: &crate::compact::Histogram) -> Self {
-        let (a, b, n) = other.config().params();
+        self.index += 1;
 
-        let mut this = Histogram::new(a, b, n).unwrap();
-
-        for (index, count) in other.index.iter().zip(other.count.iter()) {
-            this.buckets[*index] = *count;
-        }
-
-        this
+        Some(bucket)
     }
 }
 

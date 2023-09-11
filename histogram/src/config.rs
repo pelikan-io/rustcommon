@@ -3,18 +3,19 @@ use super::{BuildError, Error};
 #[derive(Clone, Copy)]
 pub(crate) struct Config {
     max: u64,
-    a: u32,
-    b: u32,
+    a: u8,
+    b: u8,
+    n: u8,
+    cutoff_power: u8,
     cutoff_value: u64,
-    cutoff_power: u32,
     lower_bin_count: u32,
     upper_bin_divisions: u32,
     upper_bin_count: u32,
-    n: u32,
 }
 
 impl Config {
     pub fn new(a: u8, b: u8, n: u8) -> Result<Self, BuildError> {
+        // temporarily convert these to wider types
         let a: u32 = a.into();
         let b: u32 = b.into();
         let n: u32 = n.into();
@@ -41,6 +42,9 @@ impl Config {
         //
         // therefore our cutoff power = a + b + 1
 
+        // note: because a + b must be less than n which is a u8, a + b + 1 must
+        // be less than or equal to u8::MAX. This means our cutoff power will
+        // always fit in a u8
         let cutoff_power = a + b + 1;
         let cutoff_value = 2_u64.pow(cutoff_power);
         let lower_bin_width = 2_u32.pow(a);
@@ -49,23 +53,23 @@ impl Config {
         let max = if n == 64 { u64::MAX } else { 2_u64.pow(n) };
 
         let lower_bin_count = (cutoff_value / lower_bin_width as u64) as u32;
-        let upper_bin_count = (n - (a + b + 1)) * upper_bin_divisions;
+        let upper_bin_count = (n - cutoff_power) * upper_bin_divisions;
 
         Ok(Self {
             max,
-            a,
-            b,
-            cutoff_power,
+            a: a as u8,
+            b: b as u8,
+            n: n as u8,
+            cutoff_power: cutoff_power as u8,
             cutoff_value,
             lower_bin_count,
             upper_bin_divisions,
             upper_bin_count,
-            n,
         })
     }
 
     pub fn params(&self) -> (u8, u8, u8) {
-        (self.a as u8, self.b as u8, self.n as u8)
+        (self.a, self.b, self.n)
     }
 
     pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
@@ -78,8 +82,8 @@ impl Config {
         }
 
         let power = 63 - value.leading_zeros();
-        let log_bin = power - self.cutoff_power;
-        let offset = (value - (1 << power)) >> (power - self.b);
+        let log_bin = power - self.cutoff_power as u32;
+        let offset = (value - (1 << power)) >> (power - self.b as u32);
 
         Ok((self.lower_bin_count + log_bin * self.upper_bin_divisions + offset as u32) as usize)
     }
@@ -125,7 +129,7 @@ mod tests {
 
     #[test]
     fn sizes() {
-        assert_eq!(std::mem::size_of::<Config>(), 48);
+        assert_eq!(std::mem::size_of::<Config>(), 32);
     }
 
     #[test]
