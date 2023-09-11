@@ -78,6 +78,6 @@ mod tests {
 
     #[test]
     fn size() {
-        assert_eq!(std::mem::size_of::<Snapshot>(), 96);
+        assert_eq!(std::mem::size_of::<Snapshot>(), 80);
     }
 }

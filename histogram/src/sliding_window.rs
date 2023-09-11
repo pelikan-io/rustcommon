@@ -276,7 +276,7 @@ impl Histogram {
         };
 
         Ok(Snapshot {
-            range: start.range.start..=end.range.end,
+            range: start.range.start..end.range.end,
             histogram,
         })
     }
