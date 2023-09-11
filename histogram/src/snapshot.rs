@@ -4,7 +4,7 @@ use crate::*;
 
 /// An immutable snapshot of a distribution for a fixed time window.
 pub struct Snapshot {
-    pub(crate) range: core::ops::RangeInclusive<UnixInstant>,
+    pub(crate) range: core::ops::Range<UnixInstant>,
     pub(crate) histogram: Histogram,
 }
 
@@ -33,18 +33,18 @@ impl Snapshot {
             .map(|v| v.first().unwrap().1.clone())
     }
 
-    pub fn range(&self) -> core::ops::RangeInclusive<UnixInstant> {
+    pub fn range(&self) -> core::ops::Range<UnixInstant> {
         self.range.clone()
     }
 
     /// Returns the inclusive lower bound for the snapshot.
     pub fn start(&self) -> UnixInstant {
-        *self.range.start()
+        self.range.start
     }
 
-    /// Returns the inclusive upper bound for the snapshot.
+    /// Returns the exclusive upper bound for the snapshot.
     pub fn end(&self) -> UnixInstant {
-        *self.range.end()
+        self.range.end
     }
 }
 
