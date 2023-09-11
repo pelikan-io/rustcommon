@@ -118,8 +118,8 @@ impl Histogram {
         interval: core::time::Duration,
         slices: usize,
     ) -> Result<Self, BuildError> {
-        let started = UnixInstant::now();
         let now = Instant::now();
+        let started = UnixInstant::now();
 
         let config = Config::new(a, b, n)?;
 
@@ -139,6 +139,7 @@ impl Histogram {
         let span = Duration::from_nanos(interval as u64 * slices as u64);
         let interval = Duration::from_nanos(interval as u64);
 
+        let started = started - span;
         let tick_origin = now - span;
         let tick_at = now;
 
@@ -237,6 +238,10 @@ impl Histogram {
         self.snapshot();
 
         let tick_at = self.tick_at();
+
+        if *range.start() < self.started {
+            return Err(Error::OutOfSlidingWindow);
+        }
 
         // convert unix times to monotonic clock times
         let start = self.tick_origin + (*range.start() - self.started);
