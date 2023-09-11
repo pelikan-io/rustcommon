@@ -4,7 +4,7 @@ use crate::*;
 
 /// An immutable snapshot of a distribution for a fixed time window.
 pub struct Snapshot {
-    pub(crate) range: core::ops::Range<UnixInstant>,
+    pub(crate) range: core::ops::RangeInclusive<UnixInstant>,
     pub(crate) histogram: Histogram,
 }
 
@@ -30,11 +30,21 @@ impl Snapshot {
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         self.percentiles(&[percentile])
-            .map(|v| v.first().unwrap().1)
+            .map(|v| v.first().unwrap().1.clone())
     }
 
-    pub fn range(&self) -> core::ops::Range<UnixInstant> {
-        self.range
+    pub fn range(&self) -> core::ops::RangeInclusive<UnixInstant> {
+        self.range.clone()
+    }
+
+    /// Returns the inclusive lower bound for the snapshot.
+    pub fn start(&self) -> UnixInstant {
+        *self.range.start()
+    }
+
+    /// Returns the inclusive upper bound for the snapshot.
+    pub fn end(&self) -> UnixInstant {
+        *self.range.end()
     }
 }
 

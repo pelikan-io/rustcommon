@@ -68,10 +68,14 @@ impl Config {
         })
     }
 
+    /// Returns the parameters `a`, `b`, and `n` that were used to create the
+    /// config.
     pub fn params(&self) -> (u8, u8, u8) {
         (self.a, self.b, self.n)
     }
 
+    /// Converts a value to a bucket index. Returns an error if the value is
+    /// outside of the range for the config.
     pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
         if value < self.cutoff_value {
             return Ok((value >> self.a) as usize);
@@ -88,7 +92,8 @@ impl Config {
         Ok((self.lower_bin_count + log_bin * self.upper_bin_divisions + offset as u32) as usize)
     }
 
-    pub fn index_to_lower_bound(&self, index: usize) -> u64 {
+    /// Convert a bucket index to a lower bound.
+    fn index_to_lower_bound(&self, index: usize) -> u64 {
         let a = self.a as u64;
         let b = self.b as u64;
         let g = index as u64 >> self.b;
@@ -101,7 +106,8 @@ impl Config {
         }
     }
 
-    pub fn index_to_upper_bound(&self, index: usize) -> u64 {
+    /// Convert a bucket index to a upper inclusive bound.
+    fn index_to_upper_bound(&self, index: usize) -> u64 {
         if index as u32 == self.lower_bin_count + self.upper_bin_count - 1 {
             return self.max;
         }
@@ -118,6 +124,12 @@ impl Config {
         }
     }
 
+    /// Convert a bucket index to a range.
+    pub fn index_to_range(&self, index: usize) -> core::ops::RangeInclusive<u64> {
+        self.index_to_lower_bound(index)..=self.index_to_upper_bound(index)
+    }
+
+    /// Return the total number of bins (buckets) needed for this config.
     pub fn total_bins(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
     }

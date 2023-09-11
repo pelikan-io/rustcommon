@@ -102,8 +102,7 @@ impl Histogram {
                             *percentile,
                             Bucket {
                                 count: self.buckets[bucket_idx],
-                                lower: self.config.index_to_lower_bound(bucket_idx),
-                                upper: self.config.index_to_upper_bound(bucket_idx),
+                                range: self.config.index_to_range(bucket_idx),
                             },
                         ));
                     }
@@ -126,7 +125,7 @@ impl Histogram {
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         self.percentiles(&[percentile])
-            .map(|v| v.first().unwrap().1)
+            .map(|v| v.first().unwrap().1.clone())
     }
 
     /// Merge the counts from the other histogram into this histogram.
@@ -140,6 +139,10 @@ impl Histogram {
         }
 
         Ok(())
+    }
+
+    pub fn params(&self) -> (u8, u8, u8) {
+        self.config.params()
     }
 }
 
@@ -171,8 +174,7 @@ impl<'a> Iterator for Iter<'a> {
 
         let bucket = Bucket {
             count: self.histogram.buckets[self.index],
-            lower: self.histogram.config.index_to_lower_bound(self.index),
-            upper: self.histogram.config.index_to_upper_bound(self.index),
+            range: self.histogram.config.index_to_range(self.index),
         };
 
         self.index += 1;
@@ -200,25 +202,23 @@ mod tests {
                 histogram.percentile(0.0),
                 Ok(Bucket {
                     count: 1,
-                    lower: 0,
-                    upper: 0
+                    range: 0..=0,
                 })
             );
             assert_eq!(
                 histogram.percentile(100.0),
                 Ok(Bucket {
                     count: 1,
-                    lower: i,
-                    upper: i
+                    range: i..=i,
                 })
             );
         }
-        assert_eq!(histogram.percentile(25.0).map(|b| b.upper), Ok(25));
-        assert_eq!(histogram.percentile(50.0).map(|b| b.upper), Ok(50));
-        assert_eq!(histogram.percentile(75.0).map(|b| b.upper), Ok(75));
-        assert_eq!(histogram.percentile(90.0).map(|b| b.upper), Ok(90));
-        assert_eq!(histogram.percentile(99.0).map(|b| b.upper), Ok(99));
-        assert_eq!(histogram.percentile(99.9).map(|b| b.upper), Ok(100));
+        assert_eq!(histogram.percentile(25.0).map(|b| b.end()), Ok(25));
+        assert_eq!(histogram.percentile(50.0).map(|b| b.end()), Ok(50));
+        assert_eq!(histogram.percentile(75.0).map(|b| b.end()), Ok(75));
+        assert_eq!(histogram.percentile(90.0).map(|b| b.end()), Ok(90));
+        assert_eq!(histogram.percentile(99.0).map(|b| b.end()), Ok(99));
+        assert_eq!(histogram.percentile(99.9).map(|b| b.end()), Ok(100));
 
         assert_eq!(histogram.percentile(-1.0), Err(Error::InvalidPercentile));
         assert_eq!(histogram.percentile(101.0), Err(Error::InvalidPercentile));
@@ -227,7 +227,7 @@ mod tests {
             .percentiles(&[50.0, 90.0, 99.0, 99.9])
             .unwrap()
             .iter()
-            .map(|(p, b)| (*p, b.upper))
+            .map(|(p, b)| (*p, b.end()))
             .collect();
 
         assert_eq!(
@@ -240,8 +240,7 @@ mod tests {
             histogram.percentile(99.9),
             Ok(Bucket {
                 count: 1,
-                lower: 1024,
-                upper: 1031
+                range: 1024..=1031,
             })
         );
     }

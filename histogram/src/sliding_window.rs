@@ -230,16 +230,22 @@ impl Histogram {
         Ok(())
     }
 
-    /// Returns a `Snapshot` that covers the begin and end instants (inclusive).
-    /// Note that the snapshot span will expand to the proceeding and following
-    /// time boundaries.
-    pub fn snapshot_between(&self, start: Instant, end: Instant) -> Result<crate::Snapshot, Error> {
+    pub fn snapshot_between(
+        &self,
+        range: core::ops::RangeInclusive<UnixInstant>,
+    ) -> Result<crate::Snapshot, Error> {
         self.snapshot();
 
         let tick_at = self.tick_at();
 
+        // convert unix times to monotonic clock times
+        let start = self.tick_origin + (*range.start() - self.started);
+        let end = self.tick_origin + (*range.end() - self.started);
+
+        // lookup snapshot information
         let start = self.snapshot_info(start, tick_at)?;
         let end = self.snapshot_info(end, tick_at)?;
+
         let mut total_count = 0_u128;
 
         let buckets: Vec<u64> = self.snapshots[start.index]
@@ -261,8 +267,7 @@ impl Histogram {
         };
 
         Ok(Snapshot {
-            start: start.start,
-            end: end.end,
+            range: start.range.start..=end.range.end,
             histogram,
         })
     }
@@ -422,31 +427,31 @@ mod test {
         // histogram is initially empty
         let h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
             .expect("couldn't make histogram");
-        let end = Instant::now() - h.interval;
+        let end = UnixInstant::now() - h.interval;
         let s = h
-            .snapshot_between(end - Duration::from_millis(10), end)
+            .snapshot_between((end - Duration::from_millis(10))..=end)
             .expect("failed to get distribution");
         assert!(s.percentile(100.0).is_err());
 
         // after incrementing and with one or more intervals elapsed, the
         let _ = h.increment(100);
         std::thread::sleep(core::time::Duration::from_millis(2));
-        let end = Instant::now() - h.interval;
+        let end = UnixInstant::now() - h.interval;
         let s = h
-            .snapshot_between(end - Duration::from_millis(10), end)
+            .snapshot_between((end - Duration::from_millis(10))..=end)
             .expect("failed to get distribution");
-        assert_eq!(s.percentile(100.0).map(|b| b.upper()), Ok(100));
+        assert_eq!(s.percentile(100.0).map(|b| b.end()), Ok(100));
 
         // long sleep, but ensures we don't have weird timing issues in CI
         std::thread::sleep(core::time::Duration::from_millis(20));
-        let end = Instant::now() - h.interval;
+        let end = UnixInstant::now() - h.interval;
         let s = h
-            .snapshot_between(end - Duration::from_millis(10), end)
+            .snapshot_between((end - Duration::from_millis(10))..=end)
             .expect("failed to get distribution");
         assert!(
             s.percentile(100.0).is_err(),
             "percentile is: {}",
-            s.percentile(100.0).unwrap().upper()
+            s.percentile(100.0).unwrap().end()
         );
     }
 }
