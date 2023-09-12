@@ -1,12 +1,14 @@
 //! Buckets represent quantized value ranges and a count of observations within
 //! that range.
 
+use crate::RangeInclusive;
+
 /// A bucket represents a quantized range of values and a count of observations
 /// that fall into that range.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Bucket {
     pub(crate) count: u64,
-    pub(crate) range: core::ops::RangeInclusive<u64>,
+    pub(crate) range: RangeInclusive<u64>,
 }
 
 impl Bucket {
@@ -16,7 +18,7 @@ impl Bucket {
     }
 
     /// Returns the range for the bucket.
-    pub fn range(&self) -> std::ops::RangeInclusive<u64> {
+    pub fn range(&self) -> RangeInclusive<u64> {
         self.range.clone()
     }
 

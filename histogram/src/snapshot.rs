@@ -1,10 +1,10 @@
 //! A snapshot captures the distribution across a time range.
 
-use crate::*;
+use crate::{Bucket, Error, Histogram, Range, UnixInstant};
 
 /// An immutable snapshot of a distribution for a fixed time window.
 pub struct Snapshot {
-    pub(crate) range: core::ops::Range<UnixInstant>,
+    pub(crate) range: Range<UnixInstant>,
     pub(crate) histogram: Histogram,
 }
 
@@ -34,7 +34,7 @@ impl Snapshot {
     }
 
     /// Returns the time range covered by this snapshot.
-    pub fn range(&self) -> core::ops::Range<UnixInstant> {
+    pub fn range(&self) -> Range<UnixInstant> {
         self.range.clone()
     }
 

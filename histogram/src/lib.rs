@@ -34,4 +34,5 @@ pub use standard::Histogram;
 
 use crate::config::Config;
 use clocksource::precise::{AtomicInstant, Duration};
+use core::ops::{Range, RangeInclusive};
 use core::sync::atomic::Ordering;

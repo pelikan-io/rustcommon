@@ -1,5 +1,9 @@
-// use crate::snapshot::Snapshot;
-use crate::*;
+//! A histogram that stores a distribution for a fixed window of time.
+
+use crate::{
+    AtomicInstant, BuildError, Config, Duration, Error, Instant, Ordering, Range, Snapshot,
+    UnixInstant,
+};
 use core::sync::atomic::AtomicU64;
 
 /// A type of histogram that reports on the distribution of values across a
@@ -282,12 +286,12 @@ impl Histogram {
     }
 
     /// Returns the current inclusive range of time covered by the histogram.
-    pub fn range(&self) -> core::ops::Range<UnixInstant> {
+    pub fn range(&self) -> Range<UnixInstant> {
         let elapsed = self.tick_at.load(Ordering::Relaxed) - self.interval - self.tick_origin;
         let end = self.started + elapsed;
         let start = end - self.span;
 
-        core::ops::Range { start, end }
+        start..end
     }
 
     /// Moves the window forward, if necessary.
@@ -382,7 +386,7 @@ impl Histogram {
 #[derive(Debug, PartialEq)]
 struct SnapshotInfo {
     index: usize,
-    range: core::ops::Range<UnixInstant>,
+    range: Range<UnixInstant>,
 }
 
 #[cfg(test)]

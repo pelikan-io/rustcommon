@@ -1,4 +1,8 @@
+//! The configuration of a histogram which determines the buckets and how to
+//! convert a value to a bucket index and vice versa.
+
 use super::{BuildError, Error};
+use crate::RangeInclusive;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Config {
@@ -125,7 +129,7 @@ impl Config {
     }
 
     /// Convert a bucket index to a range.
-    pub fn index_to_range(&self, index: usize) -> core::ops::RangeInclusive<u64> {
+    pub fn index_to_range(&self, index: usize) -> RangeInclusive<u64> {
         self.index_to_lower_bound(index)..=self.index_to_upper_bound(index)
     }
 
