@@ -33,6 +33,7 @@ impl Snapshot {
             .map(|v| v.first().unwrap().1.clone())
     }
 
+    /// Returns the time range covered by this snapshot.
     pub fn range(&self) -> core::ops::Range<UnixInstant> {
         self.range.clone()
     }

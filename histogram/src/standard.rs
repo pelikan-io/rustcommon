@@ -141,6 +141,7 @@ impl Histogram {
         Ok(())
     }
 
+    /// Returns the parameters used to construct this histogram.
     pub fn params(&self) -> (u8, u8, u8) {
         self.config.params()
     }
