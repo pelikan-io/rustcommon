@@ -90,12 +90,12 @@ impl Histogram {
         let mut bucket_idx = 0;
         let mut partial_sum = self.buckets[bucket_idx] as u128;
 
-        let result = percentiles
+        let result: Vec<(f64, Bucket)> = percentiles
             .iter()
             .filter_map(|percentile| {
                 let count = (percentile / 100.0 * self.total_count as f64).ceil() as u128;
 
-                while bucket_idx < (self.buckets.len() - 1) {
+                loop {
                     // found the matching bucket index for this percentile
                     if partial_sum >= count {
                         return Some((
@@ -105,6 +105,11 @@ impl Histogram {
                                 range: self.config.index_to_range(bucket_idx),
                             },
                         ));
+                    }
+
+                    // check if we have reached the end of the buckets
+                    if bucket_idx == (self.buckets.len() - 1) {
+                        break;
                     }
 
                     // otherwise, increment the bucket index, partial sum, and loop

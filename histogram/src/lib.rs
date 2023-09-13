@@ -24,7 +24,7 @@ mod sliding_window;
 mod snapshot;
 mod standard;
 
-pub use clocksource::precise::{Instant, UnixInstant};
+pub use clocksource::precise::{Duration, Instant, UnixInstant};
 
 pub use bucket::Bucket;
 pub use errors::{BuildError, Error};
@@ -33,6 +33,6 @@ pub use snapshot::Snapshot;
 pub use standard::Histogram;
 
 use crate::config::Config;
-use clocksource::precise::{AtomicInstant, Duration};
+use clocksource::precise::{AtomicInstant};
 use core::ops::{Range, RangeInclusive};
 use core::sync::atomic::Ordering;

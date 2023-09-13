@@ -252,7 +252,7 @@ impl Histogram {
         }
 
         // convert unix times to monotonic clock times
-        let start = self.tick_origin + (range.start - self.started);
+        let start = self.tick_origin + (range.start - self.started - self.interval);
         let end = self.tick_origin + (range.end - self.started - self.interval);
 
         // lookup snapshot information
