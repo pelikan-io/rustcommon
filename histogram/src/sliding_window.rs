@@ -207,7 +207,7 @@ impl Histogram {
     /// will be returned.
     ///
     /// If the instant is within the window, the increment will be attributed to
-    /// the most recent time slide regardless of the true position within the
+    /// the most recent time slice regardless of the true position within the
     /// sliding window.
     pub fn increment_at(&self, instant: Instant, value: u64) -> Result<(), Error> {
         self.add_at(instant, value, 1)
@@ -223,7 +223,7 @@ impl Histogram {
     /// will be returned.
     ///
     /// If the instant is within the window, the increment will be attributed to
-    /// the most recent time slide regardless of the true position within the
+    /// the most recent time slice regardless of the true position within the
     /// sliding window.
     pub fn add_at(&self, instant: Instant, value: u64, count: u64) -> Result<(), Error> {
         self.tick_to(instant);
