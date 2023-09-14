@@ -74,9 +74,9 @@ impl Builder {
     /// Consume the builder and produce a sliding window histogram that uses
     /// atomic operations.
     pub fn build(self) -> Result<Histogram, BuildError> {
-        let (a, b, n) = self.config.params();
+        let p = self.config.params();
 
-        let mut h = Histogram::new(a, b, n, self.interval, self.slices)?;
+        let mut h = Histogram::new(p.a, p.b, p.n, self.interval, self.slices)?;
 
         // if we have some start time, we move the three time fields in the
         // histogram as necessary
@@ -103,17 +103,18 @@ impl Histogram {
     /// allows concurrent modification.
     ///
     /// # Parameters:
-    /// * `a` sets bin width in the linear portion, the bin width is `2^a`
-    /// * `b` sets the number of divisions in the logarithmic portion to `2^b`.
-    /// * `n` sets the max value as `2^n`. Note: when `n` is 64, the max value
-    ///   is `u64::MAX`
-    /// * `interval` is the duration of each discrete time slice
-    /// * `slices` is the number of discrete time slices
+    /// * See the [`crate::Parameters`] documentation for the meaning of `a`,
+    ///   `b`, and `n`.
+    /// * `interval` sets the duration between snapshots. This is the minimum
+    ///   granularity in the time domain.
+    /// * `slices` sets the number of slices/snapshots that are stored. This
+    ///   controls the span of the sliding window as a multiplier for the
+    ///   `interval`.
     ///
     /// # Constraints:
-    /// * `n` must be less than or equal to 64
-    /// * `n` must be greater than `a + b`
-    /// * `interval` in nanoseconds must fit within a `u64`
+    /// * See the [`crate::Parameters`] documentation for the constraints for
+    ///   `a`, `b`, and `n`.
+    /// * `interval` cannot exceed 1 hour (3600 seconds)
     /// * `interval` must be at least 1 millisecond
     pub fn new(
         a: u8,

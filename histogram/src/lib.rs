@@ -30,9 +30,9 @@ pub use bucket::Bucket;
 pub use errors::{BuildError, Error};
 pub use sliding_window::{Builder as SlidingWindowBuilder, Histogram as SlidingWindowHistogram};
 pub use snapshot::Snapshot;
-pub use standard::Histogram;
+pub use standard::{Histogram, Parameters};
 
 use crate::config::Config;
-use clocksource::precise::{AtomicInstant};
+use clocksource::precise::AtomicInstant;
 use core::ops::{Range, RangeInclusive};
 use core::sync::atomic::Ordering;

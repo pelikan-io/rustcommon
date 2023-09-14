@@ -12,16 +12,31 @@ pub struct Histogram {
     pub(crate) buckets: Box<[u64]>,
 }
 
+/// The parameters that determine the histogram bucketing.
+/// * `a` sets bin width in the linear portion, the bin width is `2^a`
+/// * `b` sets the number of divisions in the logarithmic portion to `2^b`
+/// * `n` sets the max value as `2^n`. Note: when `n` is 64, the max value
+///   is `u64::MAX`
+/// * `a` and `b` together set the cutoff between the linear and logarithmic
+///   regions of the histogram. The cutoff is `2^(a + b + 1)`. Values below the
+///   cutoff are stored in the linear region. Values between the cutoff and the
+///   max value (inclusive) are stored in the logarithmic region.
+/// * the absolute error in the linear region is `2^a - 1`
+/// * the relative error in the logarithmic region is `2^(-1 * b)`
+///
+/// # Constraints:
+/// * `n` must be in the range `0..=64`
+/// * `n` must be greater than `a + b`
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub struct Parameters {
+    pub a: u8,
+    pub b: u8,
+    pub n: u8,
+}
+
 impl Histogram {
-    /// Construct a new `Histogram` from the provided parameters.
-    /// * `a` sets bin width in the linear portion, the bin width is `2^a`
-    /// * `b` sets the number of divisions in the logarithmic portion to `2^b`.
-    /// * `n` sets the max value as `2^n`. Note: when `n` is 64, the max value
-    ///   is `u64::MAX`
-    ///
-    /// # Constraints
-    /// * `n` must be less than or equal to 64
-    /// * `n` must be greater than `a + b`
+    /// Construct a new `Histogram` from the provided parameters. See the
+    /// documentation for [`crate::Parameters`] to understand their meaning.
     pub fn new(a: u8, b: u8, n: u8) -> Result<Self, BuildError> {
         let config = Config::new(a, b, n)?;
 
@@ -147,7 +162,7 @@ impl Histogram {
     }
 
     /// Returns the parameters used to construct this histogram.
-    pub fn params(&self) -> (u8, u8, u8) {
+    pub fn params(&self) -> Parameters {
         self.config.params()
     }
 }

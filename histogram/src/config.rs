@@ -74,8 +74,8 @@ impl Config {
 
     /// Returns the parameters `a`, `b`, and `n` that were used to create the
     /// config.
-    pub fn params(&self) -> (u8, u8, u8) {
-        (self.a, self.b, self.n)
+    pub fn params(&self) -> crate::Parameters {
+        crate::Parameters { a: self.a, b: self.b, n: self.n }
     }
 
     /// Converts a value to a bucket index. Returns an error if the value is
@@ -225,6 +225,9 @@ mod tests {
         assert_eq!(config.index_to_range(256), 256..=257);
         assert_eq!(config.index_to_range(384), 512..=515);
         assert_eq!(config.index_to_range(512), 1024..=1031);
-        assert_eq!(config.index_to_range(7423), 18_374_686_479_671_623_680..=u64::MAX);
+        assert_eq!(
+            config.index_to_range(7423),
+            18_374_686_479_671_623_680..=u64::MAX
+        );
     }
 }
