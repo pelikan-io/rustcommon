@@ -29,8 +29,7 @@ impl Snapshot {
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        self.percentiles(&[percentile])
-            .map(|v| v.first().unwrap().1.clone())
+        self.histogram.percentile(percentile)
     }
 
     /// Returns the time range covered by this snapshot.
