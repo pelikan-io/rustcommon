@@ -12,10 +12,9 @@ repository = "https://github.com/pelikan-io/rustcommon"
 clocksource = { version = "0.7.1", path = "../clocksource" }
 thiserror = "1.0.47"
 
+[dev-dependencies]
+criterion = "0.5.1"
+
 [[bench]]
 name = "histogram"
 harness = false
-
-[dev-dependencies]
-criterion = "0.5.1"
-serde_json = "1.0.105"
