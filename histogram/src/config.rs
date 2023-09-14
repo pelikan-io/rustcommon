@@ -215,4 +215,16 @@ mod tests {
         assert_eq!(config.index_to_upper_bound(512), 1031);
         assert_eq!(config.index_to_upper_bound(7423), u64::MAX);
     }
+
+    #[test]
+    // Test index to range conversion
+    fn idx_to_range() {
+        let config = Config::new(0, 7, 64).unwrap();
+        assert_eq!(config.index_to_range(0), 0..=0);
+        assert_eq!(config.index_to_range(1), 1..=1);
+        assert_eq!(config.index_to_range(256), 256..=257);
+        assert_eq!(config.index_to_range(384), 512..=515);
+        assert_eq!(config.index_to_range(512), 1024..=1031);
+        assert_eq!(config.index_to_range(7423), 18_374_686_479_671_623_680..=u64::MAX);
+    }
 }
