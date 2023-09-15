@@ -75,7 +75,11 @@ impl Config {
     /// Returns the parameters `a`, `b`, and `n` that were used to create the
     /// config.
     pub fn params(&self) -> crate::Parameters {
-        crate::Parameters { a: self.a, b: self.b, n: self.n }
+        crate::Parameters {
+            a: self.a,
+            b: self.b,
+            n: self.n,
+        }
     }
 
     /// Converts a value to a bucket index. Returns an error if the value is

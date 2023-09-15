@@ -27,6 +27,38 @@ pub struct Histogram {
 /// # Constraints:
 /// * `n` must be in the range `0..=64`
 /// * `n` must be greater than `a + b`
+///
+/// # Example:
+/// For a histogram with the parameters `a = 0, b = 7, n = 64`:
+/// * The linear region has bins with width of `2^a = 2^0 = 1`. This means it
+///   will store values exactly and the relative error in this region is
+///   `2^a - 1 = 2^0 - 1 = 1 - 1 = 0`. If we were instead to set `a = 1` the
+///   bins will have a width of two, meaning 0 and 1 share a bucket. The
+///   absolute error is the difference between the upper and lower bound of any
+///   bin in the linear region, in the case of `a = 1` the absolute error would
+///   be 1 unit. Since we have set `a = 0`, each bin in the linear region maps
+///   to exactly one value, so the absolute error is zero.
+/// * The logarithmic region has `2^7 = 128` subdivisions.
+/// * The cutoff point, which is the transition between the linear and
+///   logarithmic regions, occurs when each subdivision in the logarithmic
+///   region is larger than a bin in the linear region.
+/// * Since subdivisions set by the `b` parameter span powers of two, the first
+///   time a subdivision is wider than a linear bucket is above `2^(a + b + 1)`.
+/// * In our example, `a = 0`, so a linear bin is one unit wide. With `b = 7`
+///   we have 128 subdivisions. At a minimum, our linear region must cover the
+///   range `0..128`. But since 128..256 (the next power of two range) also has
+///   128 distinct values, it should also be represented in the linear range as
+///   each bin in this region would also have a width of 1 unit.
+/// * This holds for all combinations of `a` and `b` and is why the cutoff value
+///   `cutoff value = 2^(a + b + 1)`.
+/// * If we were to set `a = 1`, we would have linear bins with a width of two
+///   units. This would move the cutoff value up to 512 because we can divide
+///   from `256..512` into 128 subdivisions (set by `b = 7`) that have a width
+///   of two units.
+/// * If we were to increase `b` we would also move this cutoff value up as we
+///   would allocate additional subdivisions for each logarithmic segment. This
+///   moves the point where each subdivision would be wider than a linear bin up
+///   because there are finer subdivisions.
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct Parameters {
     pub a: u8,
