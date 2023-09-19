@@ -33,29 +33,30 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Create a new builder for constructing a sliding window histogram.
+    /// Create a new histogram that stores values across a sliding window and
+    /// allows concurrent modification.
     ///
     /// # Parameters:
-    /// * `a` sets bin width in the linear portion, the bin width is `2^a`
-    /// * `b` sets the number of divisions in the logarithmic portion to `2^b`.
-    /// * `n` sets the max value as `2^n`. Note: when `n` is 64, the max value
-    ///   is `u64::MAX`
-    /// * `interval` is the duration of each discrete time slice
-    /// * `slices` is the number of discrete time slices
+    /// * See the [`crate::Parameters`] documentation for the meaning of `a`,
+    ///   `b`, and `n`.
+    /// * `interval` sets the duration between snapshots. This is the minimum
+    ///   granularity in the time domain.
+    /// * `slices` sets the number of slices/snapshots that are stored. This
+    ///   controls the span of the sliding window as a multiplier for the
+    ///   `interval`.
     ///
     /// # Constraints:
-    /// * `n` must be less than or equal to 64
-    /// * `n` must be greater than `a + b`
-    /// * `interval` in nanoseconds must fit within a `u64`
-    /// * `interval` must be at least 1 microsecond
+    /// * See the [`crate::Parameters`] documentation for the constraints for
+    ///   `a`, `b`, and `n`.
+    /// * `interval` cannot exceed 1 hour (3600 seconds)
+    /// * `interval` must be at least 1 millisecond
     pub fn new(
-        a: u8,
-        b: u8,
+        p: u8,
         n: u8,
         interval: core::time::Duration,
         slices: usize,
     ) -> Result<Self, BuildError> {
-        let config = Config::new(a, b, n)?;
+        let config = Config::new(p, n)?;
 
         Ok(Self {
             config,
@@ -76,7 +77,7 @@ impl Builder {
     pub fn build(self) -> Result<Histogram, BuildError> {
         let p = self.config.params();
 
-        let mut h = Histogram::new(p.a, p.b, p.n, self.interval, self.slices)?;
+        let mut h = Histogram::new(p.p, p.n, self.interval, self.slices)?;
 
         // if we have some start time, we move the three time fields in the
         // histogram as necessary
@@ -117,8 +118,7 @@ impl Histogram {
     /// * `interval` cannot exceed 1 hour (3600 seconds)
     /// * `interval` must be at least 1 millisecond
     pub fn new(
-        a: u8,
-        b: u8,
+        p: u8,
         n: u8,
         interval: core::time::Duration,
         slices: usize,
@@ -126,7 +126,7 @@ impl Histogram {
         let now = Instant::now();
         let started = UnixInstant::now();
 
-        let config = Config::new(a, b, n)?;
+        let config = Config::new(p, n)?;
 
         let mut live = Vec::with_capacity(config.total_bins());
         live.resize_with(config.total_bins(), || AtomicU64::new(0));
@@ -401,7 +401,7 @@ mod test {
 
     #[test]
     fn indexing() {
-        let h = Histogram::new(0, 7, 64, core::time::Duration::from_secs(1), 60).unwrap();
+        let h = Histogram::new(7, 64, core::time::Duration::from_secs(1), 60).unwrap();
         let now = h.tick_origin;
         let tick_at = h.tick_at();
 
@@ -439,7 +439,7 @@ mod test {
     #[test]
     fn smoke() {
         // histogram is initially empty
-        let h = Histogram::new(0, 7, 64, core::time::Duration::from_millis(1), 11)
+        let h = Histogram::new(7, 64, core::time::Duration::from_millis(1), 11)
             .expect("couldn't make histogram");
         let end = UnixInstant::now();
         let s = h

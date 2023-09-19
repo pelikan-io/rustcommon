@@ -17,7 +17,7 @@ macro_rules! benchmark {
 }
 
 fn histogram(c: &mut Criterion) {
-    let mut histogram = histogram::Histogram::new(0, 7, 64).unwrap();
+    let mut histogram = histogram::Histogram::new(7, 64).unwrap();
     benchmark!("histogram", histogram, c);
 }
 
@@ -25,7 +25,7 @@ fn sliding_window(c: &mut Criterion) {
     // millisecond resolution
 
     let histogram =
-        histogram::SlidingWindowHistogram::new(0, 7, 64, Duration::from_millis(1), 100).unwrap();
+        histogram::SlidingWindowHistogram::new(7, 64, Duration::from_millis(1), 100).unwrap();
     benchmark!(
         "histogram::sliding_window::atomic/milliseconds",
         histogram,
@@ -35,7 +35,7 @@ fn sliding_window(c: &mut Criterion) {
     // second resolution
 
     let histogram =
-        histogram::SlidingWindowHistogram::new(0, 7, 64, Duration::from_secs(1), 100).unwrap();
+        histogram::SlidingWindowHistogram::new(7, 64, Duration::from_secs(1), 100).unwrap();
     benchmark!("histogram::sliding_window::atomic/seconds", histogram, c);
 }
 

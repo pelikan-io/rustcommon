@@ -13,64 +13,37 @@ pub struct Histogram {
 }
 
 /// The parameters that determine the histogram bucketing.
-/// * `a` sets bin width in the linear portion, the bin width is `2^a`
-/// * `b` sets the number of divisions in the logarithmic portion to `2^b`
-/// * `n` sets the max value as `2^n`. Note: when `n` is 64, the max value
-///   is `u64::MAX`
-/// * `a` and `b` together set the cutoff between the linear and logarithmic
-///   regions of the histogram. The cutoff is `2^(a + b + 1)`. Values below the
-///   cutoff are stored in the linear region. Values between the cutoff and the
-///   max value (inclusive) are stored in the logarithmic region.
-/// * the absolute error in the linear region is `2^a - 1`
-/// * the relative error in the logarithmic region is `2^(-1 * b)`
+///
+/// As a base-2 histogram, the range of values is conceptually segmented into
+/// regions spanning monotonically increasing powers of two. Each of these
+/// segments is subdivided equally into some number of buckets. By controlling
+/// the number of buckets in each segment, we place a bound on the relative
+/// error for the histogram. By using more subdivisions, the range for each
+/// bucket is smaller which makes the effect of value quantization less
+/// apparent. Conversely, by using fewer subdivisions values that differ more
+/// widely are mapped to the same bucket.
+///
+/// The relative error of the histogram is bound by `1/(2^p)`. For example, when
+/// `p = 3` the relative error for the histogram is 12.5%. By increasing the
+/// number of subdivisions we can lower this error at the cost of additional
+/// memory for storage. Setting `p = 7` reduces the relative error to 0.78125%
+/// which may be an acceptable relative error for recording things like latency
+/// distributions.
 ///
 /// # Constraints:
 /// * `n` must be in the range `0..=64`
-/// * `n` must be greater than `a + b`
-///
-/// # Example:
-/// For a histogram with the parameters `a = 0, b = 7, n = 64`:
-/// * The linear region has bins with width of `2^a = 2^0 = 1`. This means it
-///   will store values exactly and the relative error in this region is
-///   `2^a - 1 = 2^0 - 1 = 1 - 1 = 0`. If we were instead to set `a = 1` the
-///   bins will have a width of two, meaning 0 and 1 share a bucket. The
-///   absolute error is the difference between the upper and lower bound of any
-///   bin in the linear region, in the case of `a = 1` the absolute error would
-///   be 1 unit. Since we have set `a = 0`, each bin in the linear region maps
-///   to exactly one value, so the absolute error is zero.
-/// * The logarithmic region has `2^7 = 128` subdivisions.
-/// * The cutoff point, which is the transition between the linear and
-///   logarithmic regions, occurs when each subdivision in the logarithmic
-///   region is larger than a bin in the linear region.
-/// * Since subdivisions set by the `b` parameter span powers of two, the first
-///   time a subdivision is wider than a linear bucket is above `2^(a + b + 1)`.
-/// * In our example, `a = 0`, so a linear bin is one unit wide. With `b = 7`
-///   we have 128 subdivisions. At a minimum, our linear region must cover the
-///   range `0..128`. But since 128..256 (the next power of two range) also has
-///   128 distinct values, it should also be represented in the linear range as
-///   each bin in this region would also have a width of 1 unit.
-/// * This holds for all combinations of `a` and `b` and is why the cutoff value
-///   `cutoff value = 2^(a + b + 1)`.
-/// * If we were to set `a = 1`, we would have linear bins with a width of two
-///   units. This would move the cutoff value up to 512 because we can divide
-///   from `256..512` into 128 subdivisions (set by `b = 7`) that have a width
-///   of two units.
-/// * If we were to increase `b` we would also move this cutoff value up as we
-///   would allocate additional subdivisions for each logarithmic segment. This
-///   moves the point where each subdivision would be wider than a linear bin up
-///   because there are finer subdivisions.
+/// * `n` must be greater than `p`
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct Parameters {
-    pub a: u8,
-    pub b: u8,
+    pub p: u8,
     pub n: u8,
 }
 
 impl Histogram {
     /// Construct a new `Histogram` from the provided parameters. See the
     /// documentation for [`crate::Parameters`] to understand their meaning.
-    pub fn new(a: u8, b: u8, n: u8) -> Result<Self, BuildError> {
-        let config = Config::new(a, b, n)?;
+    pub fn new(p: u8, n: u8) -> Result<Self, BuildError> {
+        let config = Config::new(p, n)?;
 
         Ok(Self::from_config(config))
     }
@@ -197,6 +170,10 @@ impl Histogram {
     pub fn params(&self) -> Parameters {
         self.config.params()
     }
+
+    pub fn total_count(&self) -> u128 {
+        self.total_count
+    }
 }
 
 impl<'a> IntoIterator for &'a Histogram {
@@ -248,7 +225,7 @@ mod tests {
     #[test]
     // Tests percentiles
     fn percentiles() {
-        let mut histogram = Histogram::new(0, 7, 64).unwrap();
+        let mut histogram = Histogram::new(7, 64).unwrap();
         for i in 0..=100 {
             let _ = histogram.increment(i);
             assert_eq!(

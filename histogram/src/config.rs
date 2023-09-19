@@ -7,8 +7,7 @@ use crate::RangeInclusive;
 #[derive(Clone, Copy)]
 pub(crate) struct Config {
     max: u64,
-    a: u8,
-    b: u8,
+    p: u8,
     n: u8,
     cutoff_power: u8,
     cutoff_value: u64,
@@ -18,10 +17,9 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub fn new(a: u8, b: u8, n: u8) -> Result<Self, BuildError> {
+    pub fn new(p: u8, n: u8) -> Result<Self, BuildError> {
         // temporarily convert these to wider types
-        let a: u32 = a.into();
-        let b: u32 = b.into();
+        let p: u32 = p.into();
         let n: u32 = n.into();
 
         // we only allow values up to 2^64
@@ -30,7 +28,7 @@ impl Config {
         }
 
         // check that the other parameters make sense together
-        if a + b >= n {
+        if p >= n {
             return Err(BuildError::MaxPowerTooLow);
         }
 
@@ -49,10 +47,10 @@ impl Config {
         // note: because a + b must be less than n which is a u8, a + b + 1 must
         // be less than or equal to u8::MAX. This means our cutoff power will
         // always fit in a u8
-        let cutoff_power = a + b + 1;
+        let cutoff_power = p + 1;
         let cutoff_value = 2_u64.pow(cutoff_power);
-        let lower_bin_width = 2_u32.pow(a);
-        let upper_bin_divisions = 2_u32.pow(b);
+        let lower_bin_width = 2_u32.pow(0);
+        let upper_bin_divisions = 2_u32.pow(p);
 
         let max = if n == 64 { u64::MAX } else { 2_u64.pow(n) };
 
@@ -61,8 +59,7 @@ impl Config {
 
         Ok(Self {
             max,
-            a: a as u8,
-            b: b as u8,
+            p: p as u8,
             n: n as u8,
             cutoff_power: cutoff_power as u8,
             cutoff_value,
@@ -76,8 +73,7 @@ impl Config {
     /// config.
     pub fn params(&self) -> crate::Parameters {
         crate::Parameters {
-            a: self.a,
-            b: self.b,
+            p: self.p,
             n: self.n,
         }
     }
@@ -86,7 +82,7 @@ impl Config {
     /// outside of the range for the config.
     pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
         if value < self.cutoff_value {
-            return Ok((value >> self.a) as usize);
+            return Ok(value as usize);
         }
 
         if value > self.max {
@@ -95,22 +91,20 @@ impl Config {
 
         let power = 63 - value.leading_zeros();
         let log_bin = power - self.cutoff_power as u32;
-        let offset = (value - (1 << power)) >> (power - self.b as u32);
+        let offset = (value - (1 << power)) >> (power - self.p as u32);
 
         Ok((self.lower_bin_count + log_bin * self.upper_bin_divisions + offset as u32) as usize)
     }
 
     /// Convert a bucket index to a lower bound.
     fn index_to_lower_bound(&self, index: usize) -> u64 {
-        let a = self.a as u64;
-        let b = self.b as u64;
-        let g = index as u64 >> self.b;
-        let h = index as u64 - g * (1 << self.b);
+        let g = index as u64 >> self.p;
+        let h = index as u64 - g * (1 << self.p);
 
         if g < 1 {
-            (1 << a) * h
+            h
         } else {
-            (1 << (a + b + g - 1)) + (1 << (a + g - 1)) * h
+            (1 << (self.p as u64 + g - 1)) + (1 << (g - 1)) * h
         }
     }
 
@@ -119,16 +113,13 @@ impl Config {
         if index as u32 == self.lower_bin_count + self.upper_bin_count - 1 {
             return self.max;
         }
-
-        let a = self.a as u64;
-        let b = self.b as u64;
-        let g = index as u64 >> self.b;
-        let h = index as u64 - g * (1 << self.b) + 1;
+        let g = index as u64 >> self.p;
+        let h = index as u64 - g * (1 << self.p) + 1;
 
         if g < 1 {
-            (1 << a) * h - 1
+            h - 1
         } else {
-            (1 << (a + b + g - 1)) + (1 << (a + g - 1)) * h - 1
+            (1 << (self.p as u64 + g - 1)) + (1 << (g - 1)) * h - 1
         }
     }
 
@@ -155,29 +146,23 @@ mod tests {
     #[test]
     // Test that the number of bins matches the expected count
     fn total_bins() {
-        let config = Config::new(0, 2, 64).unwrap();
+        let config = Config::new(2, 64).unwrap();
         assert_eq!(config.total_bins(), 252);
 
-        let config = Config::new(0, 7, 64).unwrap();
+        let config = Config::new(7, 64).unwrap();
         assert_eq!(config.total_bins(), 7424);
 
-        let config = Config::new(0, 14, 64).unwrap();
+        let config = Config::new(14, 64).unwrap();
         assert_eq!(config.total_bins(), 835_584);
 
-        let config = Config::new(1, 2, 64).unwrap();
-        assert_eq!(config.total_bins(), 248);
-
-        let config = Config::new(8, 2, 64).unwrap();
-        assert_eq!(config.total_bins(), 220);
-
-        let config = Config::new(0, 2, 4).unwrap();
+        let config = Config::new(2, 4).unwrap();
         assert_eq!(config.total_bins(), 12);
     }
 
     #[test]
     // Test value to index conversions
     fn value_to_idx() {
-        let config = Config::new(0, 7, 64).unwrap();
+        let config = Config::new(7, 64).unwrap();
         assert_eq!(config.value_to_index(0), Ok(0));
         assert_eq!(config.value_to_index(1), Ok(1));
         assert_eq!(config.value_to_index(256), Ok(256));
@@ -196,7 +181,7 @@ mod tests {
     #[test]
     // Test index to lower bound conversion
     fn idx_to_lower_bound() {
-        let config = Config::new(0, 7, 64).unwrap();
+        let config = Config::new(7, 64).unwrap();
         assert_eq!(config.index_to_lower_bound(0), 0);
         assert_eq!(config.index_to_lower_bound(1), 1);
         assert_eq!(config.index_to_lower_bound(256), 256);
@@ -211,7 +196,7 @@ mod tests {
     #[test]
     // Test index to upper bound conversion
     fn idx_to_upper_bound() {
-        let config = Config::new(0, 7, 64).unwrap();
+        let config = Config::new(7, 64).unwrap();
         assert_eq!(config.index_to_upper_bound(0), 0);
         assert_eq!(config.index_to_upper_bound(1), 1);
         assert_eq!(config.index_to_upper_bound(256), 257);
@@ -223,7 +208,7 @@ mod tests {
     #[test]
     // Test index to range conversion
     fn idx_to_range() {
-        let config = Config::new(0, 7, 64).unwrap();
+        let config = Config::new(7, 64).unwrap();
         assert_eq!(config.index_to_range(0), 0..=0);
         assert_eq!(config.index_to_range(1), 1..=1);
         assert_eq!(config.index_to_range(256), 256..=257);
