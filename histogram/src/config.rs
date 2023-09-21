@@ -17,11 +17,7 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub fn new(p: u8, n: u8) -> Result<Self, BuildError> {
-        // temporarily convert these to wider types
-        let p: u32 = p.into();
-        let n: u32 = n.into();
-
+    pub(crate) fn new(p: u8, n: u8) -> Result<Self, BuildError> {
         // we only allow values up to 2^64
         if n > 64 {
             return Err(BuildError::MaxPowerTooHigh);
@@ -48,20 +44,20 @@ impl Config {
         // be less than or equal to u8::MAX. This means our cutoff power will
         // always fit in a u8
         let cutoff_power = p + 1;
-        let cutoff_value = 2_u64.pow(cutoff_power);
+        let cutoff_value = 2_u64.pow(cutoff_power.into());
         let lower_bin_width = 2_u32.pow(0);
-        let upper_bin_divisions = 2_u32.pow(p);
+        let upper_bin_divisions = 2_u32.pow(p.into());
 
-        let max = if n == 64 { u64::MAX } else { 2_u64.pow(n) };
+        let max = if n == 64 { u64::MAX } else { 2_u64.pow(n.into()) };
 
         let lower_bin_count = (cutoff_value / lower_bin_width as u64) as u32;
-        let upper_bin_count = (n - cutoff_power) * upper_bin_divisions;
+        let upper_bin_count = (n - cutoff_power) as u32 * upper_bin_divisions;
 
         Ok(Self {
             max,
-            p: p as u8,
-            n: n as u8,
-            cutoff_power: cutoff_power as u8,
+            p,
+            n,
+            cutoff_power,
             cutoff_value,
             lower_bin_count,
             upper_bin_divisions,
@@ -71,7 +67,7 @@ impl Config {
 
     /// Returns the parameters `a`, `b`, and `n` that were used to create the
     /// config.
-    pub fn params(&self) -> crate::Parameters {
+    pub(crate) fn params(&self) -> crate::Parameters {
         crate::Parameters {
             p: self.p,
             n: self.n,
@@ -80,7 +76,7 @@ impl Config {
 
     /// Converts a value to a bucket index. Returns an error if the value is
     /// outside of the range for the config.
-    pub fn value_to_index(&self, value: u64) -> Result<usize, Error> {
+    pub(crate) fn value_to_index(&self, value: u64) -> Result<usize, Error> {
         if value < self.cutoff_value {
             return Ok(value as usize);
         }
@@ -124,12 +120,12 @@ impl Config {
     }
 
     /// Convert a bucket index to a range.
-    pub fn index_to_range(&self, index: usize) -> RangeInclusive<u64> {
+    pub(crate) fn index_to_range(&self, index: usize) -> RangeInclusive<u64> {
         self.index_to_lower_bound(index)..=self.index_to_upper_bound(index)
     }
 
     /// Return the total number of bins (buckets) needed for this config.
-    pub fn total_bins(&self) -> usize {
+    pub(crate) fn total_bins(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
     }
 }

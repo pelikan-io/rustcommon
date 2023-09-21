@@ -28,4 +28,6 @@ pub enum Error {
     OutOfSlidingWindow,
     #[error("the histogram parameters are incompatible")]
     MergeIncompatibleParameters,
+    #[error("there was an overflow when merging the histograms")]
+    MergeOverflow,
 }

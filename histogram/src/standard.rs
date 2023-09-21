@@ -1,49 +1,23 @@
 //! A basic histogram using plain counters (no atomics).
 
-use crate::{Bucket, BuildError, Config, Error};
+use crate::{Bucket, BuildError, Config, Error, Parameters};
 
 /// A simple histogram that can be used to track the distribution of occurrences
 /// of quantized u64 values.
 ///
 /// Internally it uses 64bit counters to store the counts for each bucket.
+#[derive(Clone)]
 pub struct Histogram {
     pub(crate) config: Config,
     pub(crate) total_count: u128,
     pub(crate) buckets: Box<[u64]>,
 }
 
-/// The parameters that determine the histogram bucketing.
-///
-/// As a base-2 histogram, the range of values is conceptually segmented into
-/// regions spanning monotonically increasing powers of two. Each of these
-/// segments is subdivided equally into some number of buckets. By controlling
-/// the number of buckets in each segment, we place a bound on the relative
-/// error for the histogram. By using more subdivisions, the range for each
-/// bucket is smaller which makes the effect of value quantization less
-/// apparent. Conversely, by using fewer subdivisions values that differ more
-/// widely are mapped to the same bucket.
-///
-/// The relative error of the histogram is bound by `1/(2^p)`. For example, when
-/// `p = 3` the relative error for the histogram is 12.5%. By increasing the
-/// number of subdivisions we can lower this error at the cost of additional
-/// memory for storage. Setting `p = 7` reduces the relative error to 0.78125%
-/// which may be an acceptable relative error for recording things like latency
-/// distributions.
-///
-/// # Constraints:
-/// * `n` must be in the range `0..=64`
-/// * `n` must be greater than `p`
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub struct Parameters {
-    pub p: u8,
-    pub n: u8,
-}
-
 impl Histogram {
     /// Construct a new `Histogram` from the provided parameters. See the
     /// documentation for [`crate::Parameters`] to understand their meaning.
-    pub fn new(p: u8, n: u8) -> Result<Self, BuildError> {
-        let config = Config::new(p, n)?;
+    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+        let config = Config::new(grouping_power, max_value_power)?;
 
         Ok(Self::from_config(config))
     }
@@ -153,17 +127,23 @@ impl Histogram {
             .map(|v| v.first().unwrap().1.clone())
     }
 
-    /// Merge the counts from the other histogram into this histogram.
-    pub fn merge(&mut self, other: &Histogram) -> Result<(), Error> {
+    /// Try to merge the counts from two histograms into a new histogram. This
+    /// will return an error if the parameters are incompatible or if there is
+    /// an overflow while summing the buckets.
+    pub fn try_merge(&self, other: &Histogram) -> Result<Histogram, Error> {
+        let mut result = self.clone();
+
         if self.config.params() != other.config.params() {
             return Err(Error::MergeIncompatibleParameters);
         }
 
-        for (this, other) in self.buckets.iter_mut().zip(other.buckets.iter()) {
-            *this = this.wrapping_add(*other);
+        result.total_count.checked_add(other.total_count).ok_or(Error::MergeOverflow)?;
+
+        for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
+            *this = this.checked_add(*other).ok_or(Error::MergeOverflow)?;
         }
 
-        Ok(())
+        Ok(result)
     }
 
     /// Returns the parameters used to construct this histogram.
@@ -171,6 +151,7 @@ impl Histogram {
         self.config.params()
     }
 
+    /// Returns the sum of all bucket counts within this histogram.
     pub fn total_count(&self) -> u128 {
         self.total_count
     }
