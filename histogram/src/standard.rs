@@ -1,11 +1,6 @@
-//! A basic histogram using plain counters (no atomics).
+use crate::{Bucket, BuildError, Config, Error};
 
-use crate::{Bucket, BuildError, Config, Error, Parameters};
-
-/// A simple histogram that can be used to track the distribution of occurrences
-/// of quantized u64 values.
-///
-/// Internally it uses 64bit counters to store the counts for each bucket.
+/// A histogram that uses plain 64bit counters for each bucket.
 #[derive(Clone)]
 pub struct Histogram {
     pub(crate) config: Config,
@@ -14,12 +9,23 @@ pub struct Histogram {
 }
 
 impl Histogram {
-    /// Construct a new `Histogram` from the provided parameters. See the
-    /// documentation for [`crate::Parameters`] to understand their meaning.
+    /// Construct a new histogram from the provided parameters. See the
+    /// documentation for [`crate::Config`] to understand their meaning.
     pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
         let config = Config::new(grouping_power, max_value_power)?;
 
-        Ok(Self::from_config(config))
+        Ok(Self::with_config(&config))
+    }
+
+    /// Creates a new histogram using a provided [`crate::Config`].
+    pub fn with_config(config: &Config) -> Self {
+        let buckets: Box<[u64]> = vec![0; config.total_buckets()].into();
+
+        Self {
+            config: *config,
+            total_count: 0,
+            buckets,
+        }
     }
 
     /// Increment the counter for the bucket corresponding to the provided value
@@ -35,17 +41,6 @@ impl Histogram {
         self.buckets[index] = self.buckets[index].wrapping_add(count);
         self.total_count = self.total_count.wrapping_add(count.into());
         Ok(())
-    }
-
-    /// Creates a new `Histogram` from the `Config`.
-    pub(crate) fn from_config(config: Config) -> Self {
-        let buckets: Box<[u64]> = vec![0; config.total_bins()].into();
-
-        Self {
-            config,
-            total_count: 0,
-            buckets,
-        }
     }
 
     /// Get a reference to the raw counters.
@@ -133,11 +128,14 @@ impl Histogram {
     pub fn try_merge(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
-        if self.config.params() != other.config.params() {
+        if self.config != other.config {
             return Err(Error::MergeIncompatibleParameters);
         }
 
-        result.total_count.checked_add(other.total_count).ok_or(Error::MergeOverflow)?;
+        result
+            .total_count
+            .checked_add(other.total_count)
+            .ok_or(Error::MergeOverflow)?;
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_add(*other).ok_or(Error::MergeOverflow)?;
@@ -146,9 +144,9 @@ impl Histogram {
         Ok(result)
     }
 
-    /// Returns the parameters used to construct this histogram.
-    pub fn params(&self) -> Parameters {
-        self.config.params()
+    /// Returns the configuration of the histogram.
+    pub fn config(&self) -> Config {
+        self.config
     }
 
     /// Returns the sum of all bucket counts within this histogram.

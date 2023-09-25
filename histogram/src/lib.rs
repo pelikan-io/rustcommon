@@ -11,24 +11,16 @@
 //! # Background
 //! Please see: <https://observablehq.com/@iopsystems/h2histogram>
 
+mod atomic;
 mod bucket;
 mod config;
 mod errors;
-mod parameters;
-mod sliding_window;
 mod snapshot;
 mod standard;
 
-pub use clocksource::precise::{Duration, Instant, UnixInstant};
-
+pub use atomic::AtomicHistogram;
 pub use bucket::Bucket;
+pub use config::Config;
 pub use errors::{BuildError, Error};
-pub use parameters::Parameters;
-pub use sliding_window::{Builder as SlidingWindowBuilder, Histogram as SlidingWindowHistogram};
 pub use snapshot::Snapshot;
 pub use standard::Histogram;
-
-use crate::config::Config;
-use clocksource::precise::AtomicInstant;
-use core::ops::{Range, RangeInclusive};
-use core::sync::atomic::Ordering;

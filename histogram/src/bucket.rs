@@ -1,7 +1,4 @@
-//! Buckets represent quantized value ranges and a count of observations within
-//! that range.
-
-use crate::RangeInclusive;
+use core::ops::RangeInclusive;
 
 /// A bucket represents a quantized range of values and a count of observations
 /// that fall into that range.
