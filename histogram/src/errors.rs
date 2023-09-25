@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 /// Errors returned while constructing a histogram.
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum BuildError {
     #[error("max power is too high, check that n <= 64")]
@@ -16,6 +17,7 @@ pub enum BuildError {
 }
 
 /// Errors returned for operations on histograms.
+#[non_exhaustive]
 #[derive(Error, Debug, PartialEq)]
 pub enum Error {
     #[error("histogram contains no observations")]
@@ -27,7 +29,7 @@ pub enum Error {
     #[error("the value is outside of the sliding window")]
     OutOfSlidingWindow,
     #[error("the histogram parameters are incompatible")]
-    MergeIncompatibleParameters,
-    #[error("there was an overflow when merging the histograms")]
-    MergeOverflow,
+    IncompatibleParameters,
+    #[error("an overflow occurred")]
+    Overflow,
 }

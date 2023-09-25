@@ -1,3 +1,4 @@
+use core::ops::Add;
 use crate::{Bucket, BuildError, Config, Error};
 
 /// A histogram that uses plain 64bit counters for each bucket.
@@ -122,23 +123,93 @@ impl Histogram {
             .map(|v| v.first().unwrap().1.clone())
     }
 
-    /// Try to merge the counts from two histograms into a new histogram. This
-    /// will return an error if the parameters are incompatible or if there is
-    /// an overflow while summing the buckets.
-    pub fn try_merge(&self, other: &Histogram) -> Result<Histogram, Error> {
+    /// Adds the other histogram to this histogram and returns the result as a
+    /// new histogram.
+    ///
+    /// An error is returned if the two histograms have incompatible parameters
+    /// or if there is an overflow.
+    pub fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
         if self.config != other.config {
-            return Err(Error::MergeIncompatibleParameters);
+            return Err(Error::IncompatibleParameters);
         }
 
         result
             .total_count
             .checked_add(other.total_count)
-            .ok_or(Error::MergeOverflow)?;
+            .ok_or(Error::Overflow)?;
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
-            *this = this.checked_add(*other).ok_or(Error::MergeOverflow)?;
+            *this = this.checked_add(*other).ok_or(Error::Overflow)?;
+        }
+
+        Ok(result)
+    }
+
+    /// Adds the other histogram to this histogram and returns the result as a
+    /// new histogram.
+    ///
+    /// An error is returned if the two histograms have incompatible parameters.
+    pub fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
+        let mut result = self.clone();
+
+        if self.config != other.config {
+            return Err(Error::IncompatibleParameters);
+        }
+
+        let _ = result
+            .total_count
+            .wrapping_add(other.total_count);
+
+        for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
+            *this = this.wrapping_add(*other);
+        }
+
+        Ok(result)
+    }
+
+    /// Subtracts the other histogram from this histogram and returns the result
+    /// as a new histogram.
+    ///
+    /// An error is returned if the two histograms have incompatible parameters
+    /// or if there is an overflow.
+    pub fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+        let mut result = self.clone();
+
+        if self.config != other.config {
+            return Err(Error::IncompatibleParameters);
+        }
+
+        result
+            .total_count
+            .checked_sub(other.total_count)
+            .ok_or(Error::Overflow)?;
+
+        for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
+            *this = this.checked_sub(*other).ok_or(Error::Overflow)?;
+        }
+
+        Ok(result)
+    }
+
+    /// Subtracts the other histogram from this histogram and returns the result
+    /// as a new histogram.
+    ///
+    /// An error is returned if the two histograms have incompatible parameters.
+    pub fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+        let mut result = self.clone();
+
+        if self.config != other.config {
+            return Err(Error::IncompatibleParameters);
+        }
+
+        let _ = result
+            .total_count
+            .wrapping_sub(other.total_count);
+
+        for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
+            *this = this.wrapping_sub(*other);
         }
 
         Ok(result)
