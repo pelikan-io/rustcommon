@@ -81,7 +81,7 @@ mod heatmap;
 use clocksource::Nanoseconds;
 use core::sync::atomic::AtomicU64;
 
-pub use self::heatmap::{Bucket, Heatmap, Histogram, Iter};
+pub use self::heatmap::{Bucket, Heatmap, Histogram, Iter, Percentile};
 pub use error::Error;
 
 pub type Instant = clocksource::Instant<Nanoseconds<u64>>;

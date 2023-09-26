@@ -7,7 +7,7 @@ use crate::*;
 use core::sync::atomic::*;
 use std::cmp::min;
 
-pub use histogram::{Bucket, Histogram};
+pub use histogram::{Bucket, Histogram, Percentile};
 
 type UnixInstant = clocksource::UnixInstant<Nanoseconds<u64>>;
 
@@ -326,6 +326,24 @@ impl Heatmap {
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         self.tick(Instant::now());
         self.summary.percentile(percentile).map_err(Error::from)
+    }
+
+    /// Return the nearest value for the requested percentile (0.0 - 100.0)
+    /// across the total range of samples retained in the `Heatmap`.
+    ///
+    /// Note: since the heatmap stores a distribution across a configured time
+    /// span, sequential calls to fetch the percentile might result in different
+    /// results even without concurrent writers. For instance, you may see a
+    /// 90th percentile that is higher than the 100th percentile depending on
+    /// the timing of calls to this function and the distribution of your data.
+    ///
+    /// Note: concurrent writes may also effect the value returned by this
+    /// function. Users needing better consistency should ensure that other
+    /// threads are not writing into the heatmap while this function is
+    /// in-progress.
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<Percentile>, Error> {
+        self.tick(Instant::now());
+        self.summary.percentiles(percentiles).map_err(Error::from)
     }
 
     /// Creates an iterator to iterate over the component histograms of this
