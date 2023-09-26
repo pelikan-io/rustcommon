@@ -8,7 +8,7 @@ use heatmap::Instant;
 pub use ::heatmap::Bucket;
 pub use ::heatmap::Error as HeatmapError;
 pub use ::heatmap::Iter as HeatmapIter;
-pub use ::heatmap::Percentile as Percentile;
+pub use ::heatmap::Percentile;
 
 /// A heatmap holds counts for quantized values across a period of time. It can
 /// be used to record observations at points in time and report out percentile
@@ -76,7 +76,10 @@ impl Heatmap {
 
     /// Retrieves multiple percentiles in one operation. This is more efficient
     /// than calling `percentile()` multiple times.
-    pub fn percentiles(&self, percentiles: &[f64]) -> Option<Result<Vec<Percentile>, HeatmapError>> {
+    pub fn percentiles(
+        &self,
+        percentiles: &[f64],
+    ) -> Option<Result<Vec<Percentile>, HeatmapError>> {
         self.inner
             .get()
             .map(|heatmap| heatmap.percentiles(percentiles))
