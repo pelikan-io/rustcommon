@@ -1,4 +1,3 @@
-use core::time::Duration;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 
 // To reduce duplication, we use this macro. It only works because the API for
@@ -21,23 +20,10 @@ fn histogram(c: &mut Criterion) {
     benchmark!("histogram", histogram, c);
 }
 
-fn sliding_window(c: &mut Criterion) {
-    // millisecond resolution
-
-    let histogram =
-        histogram::SlidingWindowHistogram::new(7, 64, Duration::from_millis(1), 100).unwrap();
-    benchmark!(
-        "histogram::sliding_window::atomic/milliseconds",
-        histogram,
-        c
-    );
-
-    // second resolution
-
-    let histogram =
-        histogram::SlidingWindowHistogram::new(7, 64, Duration::from_secs(1), 100).unwrap();
-    benchmark!("histogram::sliding_window::atomic/seconds", histogram, c);
+fn atomic(c: &mut Criterion) {
+    let histogram = histogram::AtomicHistogram::new(7, 64).unwrap();
+    benchmark!("atomic_histogram", histogram, c);
 }
 
-criterion_group!(benches, histogram, sliding_window);
+criterion_group!(benches, histogram, atomic);
 criterion_main!(benches);
