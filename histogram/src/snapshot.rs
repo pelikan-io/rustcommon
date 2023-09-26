@@ -1,7 +1,4 @@
-use crate::Bucket;
-use crate::Config;
-use crate::Error;
-use crate::Histogram;
+use crate::{Bucket, Config, Error, Histogram};
 use std::time::SystemTime;
 
 /// A snapshot of a histogram across a time range.

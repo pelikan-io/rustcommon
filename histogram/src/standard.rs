@@ -1,5 +1,4 @@
-use crate::Snapshot;
-use crate::{Bucket, BuildError, Config, Error};
+use crate::{Bucket, BuildError, Config, Error, Snapshot};
 use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
@@ -121,6 +120,7 @@ impl Histogram {
             .map(|v| v.first().unwrap().1.clone())
     }
 
+    /// Produce a snapshot from this histogram.
     pub fn snapshot(&self) -> Snapshot {
         let end = SystemTime::now();
 

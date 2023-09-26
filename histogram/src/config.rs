@@ -1,4 +1,4 @@
-use super::{BuildError, Error};
+use crate::{BuildError, Error};
 use core::ops::RangeInclusive;
 
 /// The configuration of a histogram which determines the bucketing strategy and

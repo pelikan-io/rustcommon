@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{BuildError, Config, Error, Histogram, Snapshot};
 use core::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
 
@@ -54,32 +54,33 @@ impl AtomicHistogram {
         Ok(())
     }
 
-    /// Causes the histogram window to slide forward to the current time, if
-    /// necessary.
-    ///
-    /// This is useful if you are updating the live buckets directly.
-    pub fn snapshot(&self) -> crate::Histogram {
+    /// Produce a snapshot from this histogram.
+    pub fn snapshot(&self) -> Snapshot {
+        let end = SystemTime::now();
+
         let buckets: Vec<u64> = self
             .buckets
             .iter()
             .map(|bucket| bucket.load(Ordering::Relaxed))
             .collect();
 
-        crate::Histogram {
+        let histogram = Histogram {
             config: self.config,
             start: self.start,
             buckets: buckets.into(),
-        }
+        };
+
+        Snapshot { end, histogram }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use crate::*;
 
     #[test]
     fn size() {
-        assert_eq!(std::mem::size_of::<Histogram>(), 64);
+        assert_eq!(std::mem::size_of::<AtomicHistogram>(), 64);
     }
 
     #[test]
