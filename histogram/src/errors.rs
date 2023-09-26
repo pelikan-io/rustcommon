@@ -30,6 +30,8 @@ pub enum Error {
     OutOfSlidingWindow,
     #[error("the histogram parameters are incompatible")]
     IncompatibleParameters,
+    #[error("the snapshot time ranges do not allow this operation")]
+    IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
 }

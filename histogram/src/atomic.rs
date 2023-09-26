@@ -1,5 +1,6 @@
 use crate::*;
 use core::sync::atomic::{AtomicU64, Ordering};
+use std::time::SystemTime;
 
 /// A histogram that uses atomic 64bit counters for each bucket.
 ///
@@ -8,6 +9,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 /// the histogram at a point in time.
 pub struct AtomicHistogram {
     config: Config,
+    start: SystemTime,
     buckets: Box<[AtomicU64]>,
 }
 
@@ -27,6 +29,7 @@ impl AtomicHistogram {
 
         Self {
             config: *config,
+            start: SystemTime::now(),
             buckets: buckets.into(),
         }
     }
@@ -51,41 +54,22 @@ impl AtomicHistogram {
         Ok(())
     }
 
-    /// Get access to the raw buckets in the live histogram.
-    ///
-    /// This is useful if you need access to the raw bucket counts or if you are
-    /// planning to update from some external source that uses the same
-    /// bucketing strategy.
-    pub fn as_slice(&self) -> &[AtomicU64] {
-        &self.buckets
-    }
-
     /// Causes the histogram window to slide forward to the current time, if
     /// necessary.
     ///
     /// This is useful if you are updating the live buckets directly.
     pub fn snapshot(&self) -> crate::Histogram {
-        let mut total_count: u128 = 0;
         let buckets: Vec<u64> = self
             .buckets
             .iter()
-            .map(|bucket| {
-                let count = bucket.load(Ordering::Relaxed);
-                total_count += count as u128;
-                count
-            })
+            .map(|bucket| bucket.load(Ordering::Relaxed))
             .collect();
 
         crate::Histogram {
             config: self.config,
-            total_count,
+            start: self.start,
             buckets: buckets.into(),
         }
-    }
-
-    /// Returns the configuration of the histogram.
-    pub fn config(&self) -> Config {
-        self.config
     }
 }
 

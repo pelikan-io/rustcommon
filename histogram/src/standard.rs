@@ -1,11 +1,12 @@
-use core::ops::Add;
+use crate::Snapshot;
 use crate::{Bucket, BuildError, Config, Error};
+use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
 #[derive(Clone)]
 pub struct Histogram {
     pub(crate) config: Config,
-    pub(crate) total_count: u128,
+    pub(crate) start: SystemTime,
     pub(crate) buckets: Box<[u64]>,
 }
 
@@ -24,7 +25,7 @@ impl Histogram {
 
         Self {
             config: *config,
-            total_count: 0,
+            start: SystemTime::now(),
             buckets,
         }
     }
@@ -40,7 +41,6 @@ impl Histogram {
     pub fn add(&mut self, value: u64, count: u64) -> Result<(), Error> {
         let index = self.config.value_to_index(value)?;
         self.buckets[index] = self.buckets[index].wrapping_add(count);
-        self.total_count = self.total_count.wrapping_add(count.into());
         Ok(())
     }
 
@@ -60,11 +60,9 @@ impl Histogram {
     /// example, the 50th percentile (median) can be found using `50.0`.
     ///
     /// The results will be sorted by the percentile.
-    pub(crate) fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
-        // if the histogram is empty, then we should return an error
-        if self.total_count == 0_u128 {
-            return Err(Error::Empty);
-        }
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+        // get the total count
+        let total_count: u128 = self.buckets.iter().map(|v| *v as u128).sum();
 
         // sort the requested percentiles so we can find them in a single pass
         let mut percentiles = percentiles.to_vec();
@@ -83,7 +81,7 @@ impl Histogram {
         let result: Vec<(f64, Bucket)> = percentiles
             .iter()
             .filter_map(|percentile| {
-                let count = (percentile / 100.0 * self.total_count as f64).ceil() as u128;
+                let count = (percentile / 100.0 * total_count as f64).ceil() as u128;
 
                 loop {
                     // found the matching bucket index for this percentile
@@ -123,22 +121,26 @@ impl Histogram {
             .map(|v| v.first().unwrap().1.clone())
     }
 
+    pub fn snapshot(&self) -> Snapshot {
+        let end = SystemTime::now();
+
+        Snapshot {
+            end,
+            histogram: self.clone(),
+        }
+    }
+
     /// Adds the other histogram to this histogram and returns the result as a
     /// new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
-    pub fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub(crate) fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
-
-        result
-            .total_count
-            .checked_add(other.total_count)
-            .ok_or(Error::Overflow)?;
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_add(*other).ok_or(Error::Overflow)?;
@@ -151,16 +153,12 @@ impl Histogram {
     /// new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters.
-    pub fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub(crate) fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
-
-        let _ = result
-            .total_count
-            .wrapping_add(other.total_count);
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_add(*other);
@@ -174,17 +172,12 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
-    pub fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub(crate) fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
-
-        result
-            .total_count
-            .checked_sub(other.total_count)
-            .ok_or(Error::Overflow)?;
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_sub(*other).ok_or(Error::Overflow)?;
@@ -197,16 +190,12 @@ impl Histogram {
     /// as a new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters.
-    pub fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub(crate) fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
         let mut result = self.clone();
 
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
-
-        let _ = result
-            .total_count
-            .wrapping_sub(other.total_count);
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_sub(*other);
@@ -215,14 +204,9 @@ impl Histogram {
         Ok(result)
     }
 
-    /// Returns the configuration of the histogram.
+    /// Returns the bucket configuration of the histogram.
     pub fn config(&self) -> Config {
         self.config
-    }
-
-    /// Returns the sum of all bucket counts within this histogram.
-    pub fn total_count(&self) -> u128 {
-        self.total_count
     }
 }
 
