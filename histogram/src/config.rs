@@ -68,7 +68,7 @@ impl Config {
     /// Create a new histogram `Config` from the parameters. See the struct
     /// documentation [`crate::Config`] for the meaning of the parameters and
     /// their constraints.
-    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+    pub const fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
         // we only allow values up to 2^64
         if max_value_power > 64 {
             return Err(BuildError::MaxPowerTooHigh);
@@ -95,14 +95,14 @@ impl Config {
         // be less than or equal to u8::MAX. This means our cutoff power will
         // always fit in a u8
         let cutoff_power = grouping_power + 1;
-        let cutoff_value = 2_u64.pow(cutoff_power.into());
+        let cutoff_value = 2_u64.pow(cutoff_power as u32);
         let lower_bin_width = 2_u32.pow(0);
-        let upper_bin_divisions = 2_u32.pow(grouping_power.into());
+        let upper_bin_divisions = 2_u32.pow(grouping_power as u32);
 
         let max = if max_value_power == 64 {
             u64::MAX
         } else {
-            2_u64.pow(max_value_power.into())
+            2_u64.pow(max_value_power as u32)
         };
 
         let lower_bin_count = (cutoff_value / lower_bin_width as u64) as u32;
@@ -121,17 +121,17 @@ impl Config {
     }
 
     /// Returns the grouping power that was used to create this configuration.
-    pub fn grouping_power(&self) -> u8 {
+    pub const fn grouping_power(&self) -> u8 {
         self.grouping_power
     }
 
     /// Returns the max value power that was used to create this configuration.
-    pub fn max_value_power(&self) -> u8 {
+    pub const fn max_value_power(&self) -> u8 {
         self.max_value_power
     }
 
     /// Return the total number of buckets needed for this config.
-    pub fn total_buckets(&self) -> usize {
+    pub const fn total_buckets(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
     }
 
