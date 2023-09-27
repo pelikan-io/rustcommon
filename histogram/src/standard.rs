@@ -136,11 +136,11 @@ impl Histogram {
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
     pub(crate) fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_add(*other).ok_or(Error::Overflow)?;
@@ -154,11 +154,11 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters.
     pub(crate) fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_add(*other);
@@ -173,11 +173,11 @@ impl Histogram {
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
     pub(crate) fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_sub(*other).ok_or(Error::Overflow)?;
@@ -191,11 +191,11 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters.
     pub(crate) fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_sub(*other);
