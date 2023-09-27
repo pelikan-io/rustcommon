@@ -13,7 +13,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 metriken-derive = { version = "0.2.0", path = "./derive" }
-heatmap = { version = "0.7.8", path = "../heatmap" }
+histogram = { git = "https://github.com/pelikan-io/rustcommon", branch = "main" }
 
 linkme = "0.3.3"
 once_cell = "1.14.0"
