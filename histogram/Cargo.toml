@@ -1,20 +1,19 @@
 [package]
 name = "histogram"
-version = "0.7.4"
+version = "0.8.0"
 edition = "2021"
 authors = ["Brian Martin <brian@pelikan.io>"]
-license = "Apache-2.0"
-description = "Fast and simple atomic histograms"
-homepage = "https://github.com/pelikan-io/rustcommon/histogram"
+license = "MIT OR Apache-2.0"
+description = "A collection of histogram data structures"
+homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-thiserror = "1.0.38"
+thiserror = "1.0.47"
 
 [dev-dependencies]
-criterion = "0.4.0"
-itertools = "0.11.0"
+criterion = "0.5.1"
 
 [[bench]]
-name = "bench"
+name = "histogram"
 harness = false
