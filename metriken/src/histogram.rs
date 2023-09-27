@@ -3,7 +3,7 @@ use parking_lot::RwLock;
 
 use std::sync::OnceLock;
 
-pub use histogram::{Bucket, Error as HistogramError, Snapshot};
+pub use histogram::{Bucket, Config as HistogramConfig, Error as HistogramError, Snapshot};
 
 /// A histogram that uses free-running atomic counters to track the distribution
 /// of values. They are only useful for recording values and producing
@@ -15,8 +15,7 @@ pub use histogram::{Bucket, Error as HistogramError, Snapshot};
 /// histogram from pre-aggregated data with a compatible layout.
 pub struct AtomicHistogram {
     inner: OnceLock<histogram::AtomicHistogram>,
-    grouping_power: u8,
-    max_value_power: u8,
+    config: HistogramConfig,
 }
 
 impl AtomicHistogram {
@@ -29,18 +28,24 @@ impl AtomicHistogram {
     /// - `max_value_power` must be in the range 1..=64
     /// - `grouping_power` must be in the range `0..=(max_value_power - 1)`
     pub const fn new(grouping_power: u8, max_value_power: u8) -> Self {
-        assert!(::histogram::Config::new(grouping_power, max_value_power).is_ok());
+        let config = match ::histogram::Config::new(grouping_power, max_value_power) {
+            Ok(c) => c,
+            Err(_) => panic!("invalid histogram config"),
+        };
 
         Self {
             inner: OnceLock::new(),
-            grouping_power,
-            max_value_power,
+            config,
         }
     }
 
     /// Increments the bucket for a corresponding value.
     pub fn increment(&self, value: u64) -> Result<(), HistogramError> {
         self.get_or_init().increment(value)
+    }
+
+    pub fn config(&self) -> HistogramConfig {
+        self.config
     }
 
     /// Create a new snapshot from the histogram.
@@ -50,7 +55,7 @@ impl AtomicHistogram {
 
     fn get_or_init(&self) -> &::histogram::AtomicHistogram {
         self.inner.get_or_init(|| {
-            ::histogram::AtomicHistogram::new(self.grouping_power, self.max_value_power).unwrap()
+            ::histogram::AtomicHistogram::with_config(&self.config)
         })
     }
 }
@@ -75,9 +80,7 @@ impl Metric for AtomicHistogram {
 /// histogram from pre-aggregated data with a compatible layout.
 pub struct RwLockHistogram {
     inner: OnceLock<RwLock<histogram::Histogram>>,
-    grouping_power: u8,
-    max_value_power: u8,
-    total_buckets: usize,
+    config: HistogramConfig,
 }
 
 impl RwLockHistogram {
@@ -90,24 +93,20 @@ impl RwLockHistogram {
     /// - `max_value_power` must be in the range 1..=64
     /// - `grouping_power` must be in the range `0..=(max_value_power - 1)`
     pub const fn new(grouping_power: u8, max_value_power: u8) -> Self {
-        let config = ::histogram::Config::new(grouping_power, max_value_power);
-
-        let total_buckets = match config {
-            Ok(c) => c.total_buckets(),
+        let config = match ::histogram::Config::new(grouping_power, max_value_power) {
+            Ok(c) => c,
             Err(_e) => panic!("invalid histogram config"),
         };
 
         Self {
             inner: OnceLock::new(),
-            grouping_power,
-            max_value_power,
-            total_buckets,
+            config,
         }
     }
 
     /// Updates the histogram counts from raw data.
     pub fn update_from(&self, data: &[u64]) -> Result<(), HistogramError> {
-        if data.len() != self.total_buckets {
+        if data.len() != self.config.total_buckets() {
             return Err(HistogramError::IncompatibleParameters);
         }
 
@@ -119,6 +118,10 @@ impl RwLockHistogram {
         Ok(())
     }
 
+    pub fn config(&self) -> HistogramConfig {
+        self.config
+    }
+
     /// Create a new snapshot from the histogram.
     pub fn snapshot(&self) -> Option<Snapshot> {
         self.inner.get().map(|h| h.read().snapshot())
@@ -126,8 +129,7 @@ impl RwLockHistogram {
 
     fn get_or_init(&self) -> &RwLock<::histogram::Histogram> {
         self.inner.get_or_init(|| {
-            ::histogram::Histogram::new(self.grouping_power, self.max_value_power)
-                .unwrap()
+            ::histogram::Histogram::with_config(&self.config)
                 .into()
         })
     }
