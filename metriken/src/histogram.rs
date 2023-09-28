@@ -3,7 +3,7 @@ use parking_lot::RwLock;
 
 use std::sync::OnceLock;
 
-pub use histogram::{Bucket, Config as HistogramConfig, Error as HistogramError, Snapshot};
+pub use histogram::{Bucket, Config, Error, Snapshot};
 
 /// A histogram that uses free-running atomic counters to track the distribution
 /// of values. They are only useful for recording values and producing
@@ -15,7 +15,7 @@ pub use histogram::{Bucket, Config as HistogramConfig, Error as HistogramError, 
 /// histogram from pre-aggregated data with a compatible layout.
 pub struct AtomicHistogram {
     inner: OnceLock<histogram::AtomicHistogram>,
-    config: HistogramConfig,
+    config: Config,
 }
 
 impl AtomicHistogram {
@@ -40,11 +40,11 @@ impl AtomicHistogram {
     }
 
     /// Increments the bucket for a corresponding value.
-    pub fn increment(&self, value: u64) -> Result<(), HistogramError> {
+    pub fn increment(&self, value: u64) -> Result<(), Error> {
         self.get_or_init().increment(value)
     }
 
-    pub fn config(&self) -> HistogramConfig {
+    pub fn config(&self) -> Config {
         self.config
     }
 
@@ -80,7 +80,7 @@ impl Metric for AtomicHistogram {
 /// histogram from pre-aggregated data with a compatible layout.
 pub struct RwLockHistogram {
     inner: OnceLock<RwLock<histogram::Histogram>>,
-    config: HistogramConfig,
+    config: Config,
 }
 
 impl RwLockHistogram {
@@ -105,9 +105,9 @@ impl RwLockHistogram {
     }
 
     /// Updates the histogram counts from raw data.
-    pub fn update_from(&self, data: &[u64]) -> Result<(), HistogramError> {
+    pub fn update_from(&self, data: &[u64]) -> Result<(), Error> {
         if data.len() != self.config.total_buckets() {
-            return Err(HistogramError::IncompatibleParameters);
+            return Err(Error::IncompatibleParameters);
         }
 
         let mut histogram = self.get_or_init().write();
@@ -118,7 +118,7 @@ impl RwLockHistogram {
         Ok(())
     }
 
-    pub fn config(&self) -> HistogramConfig {
+    pub fn config(&self) -> Config {
         self.config
     }
 

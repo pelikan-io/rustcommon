@@ -2,6 +2,7 @@ use crate::{Bucket, Config, Error, Histogram};
 use std::time::SystemTime;
 
 /// A snapshot of a histogram across a time range.
+#[derive(Clone)]
 pub struct Snapshot {
     // note: `Histogram` contains the start time
     pub(crate) end: SystemTime,

@@ -89,7 +89,7 @@ macro_rules! used_in_docs {
 mod counter;
 mod formatter;
 mod gauge;
-mod histogram;
+pub mod histogram;
 mod lazy;
 mod metadata;
 mod metrics;
@@ -103,7 +103,7 @@ pub use crate::counter::Counter;
 pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::formatter::{default_formatter, Format};
 pub use crate::gauge::Gauge;
-pub use crate::histogram::{AtomicHistogram, Bucket, HistogramError, RwLockHistogram};
+pub use crate::histogram::{AtomicHistogram, RwLockHistogram};
 pub use crate::lazy::Lazy;
 pub use crate::metadata::{Metadata, MetadataIter};
 pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};
