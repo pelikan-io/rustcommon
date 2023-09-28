@@ -255,22 +255,25 @@ impl Ratelimiter {
     /// token has been acquired. On failure, a `Duration` hinting at when the
     /// next refill would occur is returned.
     pub fn try_wait(&self) -> Result<(), core::time::Duration> {
-        let refill_result = self.refill(Instant::now());
-
         loop {
-            let available = self.available.load(Ordering::Acquire);
-            if available == 0 {
-                refill_result?
-            }
+            let refill_result = self.refill(Instant::now());
 
-            let new = available - 1;
+            loop {
+                let available = self.available.load(Ordering::Acquire);
+                if available == 0 {
+                    refill_result?;
+                    break;
+                }
 
-            if self
-                .available
-                .compare_exchange(available, new, Ordering::AcqRel, Ordering::Acquire)
-                .is_ok()
-            {
-                return Ok(());
+                let new = available - 1;
+
+                if self
+                    .available
+                    .compare_exchange(available, new, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
+                    return Ok(());
+                }
             }
         }
     }
