@@ -266,24 +266,28 @@ impl Ratelimiter {
 
             // Note: right now it doesn't matter if refill succeeded or failed.
             // We might already have tokens available. Even if refill failed we
-            // check if there are tokens, and attempt to acquire one.
+            // check if there are tokens and attempt to acquire one.
 
             // Our inner loop deals with acquiring a token. It will only repeat
-            // if there is a race on the available tokens between the load and
-            // compare exchange, or if there is a race between refill and load.
+            // if there is a race on the available tokens. This can occur
+            // between:
+            // - the refill in the outer loop and the load in the inner loop
+            // - the load and the compare exchange, both in the inner loop
+            //
             // Both these cases mean that somebody has taken a token we had
-            // hoped to acquire.
+            // hoped to acquire. However, the handling of these cases differs.
             loop {
                 // load the count of available tokens
                 let available = self.available.load(Ordering::Acquire);
 
                 // Two cases if there are no available tokens, we have:
-                // - failed to refill and the bucket was empty. This means we
-                //   should early return with `?` to provide the caller with the
-                //   duration until next refill.
-                // - succeeded to refill and continue past `?`. This is only hit
-                //   if somebody else took the token between refill and load. In
-                //   this case, we break the inner loop
+                // - Failed to refill and the bucket was empty. This means we
+                //   should early return with an error that provides the caller
+                //   with the duration until next refill.
+                // - Succeeded to refill but there are now no tokens. This is
+                //   only hit if somebody else took the token between refill and
+                //   load. In this case, we break the inner loop and repeat from
+                //   the top of the outer loop.
                 //
                 // Note: this is when it matters if the refill was successful.
                 // We use the success or failure to determine if there was a
