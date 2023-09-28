@@ -2,7 +2,7 @@ use crate::{Bucket, BuildError, Config, Error, Snapshot};
 use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Histogram {
     pub(crate) config: Config,
     pub(crate) start: SystemTime,
@@ -307,5 +307,89 @@ mod tests {
                 range: 1024..=1031,
             })
         );
+    }
+
+    // Return four histograms (three with identical configs and one with a
+    // different config) for testing add and subtract. One of the histograms
+    // should be populated with the maximum u64 value to cause overflows.
+    fn build_histograms() -> (Histogram, Histogram, Histogram, Histogram) {
+        let mut h1 = Histogram::new(1, 3).unwrap();
+        let mut h2 = Histogram::new(1, 3).unwrap();
+        let mut h3 = Histogram::new(1, 3).unwrap();
+        let h4 = Histogram::new(7, 32).unwrap();
+
+        for i in 0..h1.config().total_buckets() {
+            h1.as_mut_slice()[i] = 1;
+            h2.as_mut_slice()[i] = 1;
+            h3.as_mut_slice()[i] = u64::MAX;
+        }
+
+        (h1, h2, h3, h4)
+    }
+
+    #[test]
+    // Tests checked add
+    fn checked_add() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.checked_add(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.checked_add(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
+
+        assert_eq!(h.checked_add(&h_overflow), Err(Error::Overflow));
+    }
+
+    #[test]
+    // Tests wrapping add
+    fn wrapping_add() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.wrapping_add(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.wrapping_add(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
+
+        let r = h.wrapping_add(&h_overflow).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    // Tests checked sub
+    fn checked_sub() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.checked_sub(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.checked_sub(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+
+        assert_eq!(h.checked_add(&h_overflow), Err(Error::Overflow));
+    }
+
+    #[test]
+    // Tests wrapping sub
+    fn wrapping_sub() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.wrapping_sub(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.wrapping_sub(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+
+        let r = h.wrapping_sub(&h_overflow).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
     }
 }
