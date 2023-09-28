@@ -255,16 +255,59 @@ impl Ratelimiter {
     /// token has been acquired. On failure, a `Duration` hinting at when the
     /// next refill would occur is returned.
     pub fn try_wait(&self) -> Result<(), core::time::Duration> {
+        // We have an outer loop that drives the refilling of the token bucket.
+        // This will only be repeated if we refill successfully, but somebody
+        // else takes the newly available token(s) before we can attempt to
+        // acquire one.
         loop {
+            // Attempt to refill the bucket. This makes sure we are moving the
+            // time forward, issuing new tokens, hitting our max capacity, etc.
             let refill_result = self.refill(Instant::now());
 
+            // Note: right now it doesn't matter if refill succeeded or failed.
+            // We might already have tokens available. Even if refill failed we
+            // check if there are tokens, and attempt to acquire one.
+
+            // Our inner loop deals with acquiring a token. It will only repeat
+            // if there is a race on the available tokens between the load and
+            // compare exchange, or if there is a race between refill and load.
+            // Both these cases mean that somebody has taken a token we had
+            // hoped to acquire.
             loop {
+                // load the count of available tokens
                 let available = self.available.load(Ordering::Acquire);
+
+                // Two cases if there are no available tokens, we have:
+                // - failed to refill and the bucket was empty. This means we
+                //   should early return with `?` to provide the caller with the
+                //   duration until next refill.
+                // - succeeded to refill and continue past `?`. This is only hit
+                //   if somebody else took the token between refill and load. In
+                //   this case, we break the inner loop
+                //
+                // Note: this is when it matters if the refill was successful.
+                // We use the success or failure to determine if there was a
+                // race.
                 if available == 0 {
-                    refill_result?;
-                    break;
+                    match refill_result {
+                        Ok(_) => {
+                            // This means we raced. Refill succeeded but another
+                            // caller has taken the token. We break the inner
+                            // loop and try to refill again.
+                            break;
+                        }
+                        Err(e) => {
+                            // Refill failed and there were no tokens already
+                            // available. We return the error which contains a
+                            // duration until the next refill.
+                            return Err(e);
+                        }
+                    }
                 }
 
+                // If we made it here, available is > 0 and so we can attempt to
+                // acquire a token by doing a simple compare exchange on
+                // available with the new value.
                 let new = available - 1;
 
                 if self
@@ -272,8 +315,13 @@ impl Ratelimiter {
                     .compare_exchange(available, new, Ordering::AcqRel, Ordering::Acquire)
                     .is_ok()
                 {
+                    // We have acquired a token and can return successfully
                     return Ok(());
                 }
+
+                // If we raced on the compare exchange, we need to repeat the
+                // token acquisition. Either there will be another token we can
+                // try to acquire, or we will break and attempt a refill again.
             }
         }
     }
