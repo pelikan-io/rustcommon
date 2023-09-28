@@ -130,6 +130,11 @@ impl Config {
         self.max_value_power
     }
 
+    /// Returns the relative error (in percentage) of this configuration.
+    pub fn error(&self) -> f64 {
+        100.0 / 2_u64.pow(self.grouping_power as u32) as f64
+    }
+
     /// Return the total number of buckets needed for this config.
     pub const fn total_buckets(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize

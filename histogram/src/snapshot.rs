@@ -1,4 +1,4 @@
-use crate::{Bucket, Config, Error, Histogram};
+use crate::{Bucket, BuildError, Config, Error, Histogram};
 use std::time::SystemTime;
 
 /// A snapshot of a histogram across a time range.
@@ -30,6 +30,20 @@ impl Snapshot {
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
         self.histogram.percentile(percentile)
+    }
+
+    /// Returns a new downsampled histogram with a reduced grouping power.
+    ///
+    /// The new histogram is smaller but with greater relative error. The
+    /// reduction factor should be smaller than the histogram's existing
+    /// grouping power.
+    pub fn downsample(&self, factor: u8) -> Result<Snapshot, BuildError> {
+        let histogram = self.histogram.downsample(factor)?;
+
+        Ok(Self {
+            end: self.end,
+            histogram,
+        })
     }
 
     /// Merges two snapshots which cover the same time range.

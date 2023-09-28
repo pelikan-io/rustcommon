@@ -130,6 +130,41 @@ impl Histogram {
         }
     }
 
+    /// Returns a new histogram with a reduced grouping power.
+    ///
+    /// The specified factor determines how much the grouping power is reduced
+    /// by and should be smaller than the histogram's existing grouping power.
+    /// Every step of grouping power halves the total number of buckets (and
+    /// hence total size of thie histogram), while doubling the error.
+    ///
+    /// This works by iterating over every bucket in the existing histogram
+    /// and inserting the contained values into the new histogram. Since we
+    /// do not know the exact values of the data points (only that they lie
+    /// within the bucket's range), we pick a pessimistic high value.
+    pub fn downsample(&self, factor: u8) -> Result<Histogram, BuildError> {
+        let grouping_power = self.config.grouping_power();
+
+        if grouping_power <= factor {
+            return Err(BuildError::GroupingPowerTooLow);
+        }
+
+        let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
+
+        for (i, n) in self.as_slice().iter().enumerate() {
+            let bucket_range = self.config.index_to_range(i);
+            let val = (*bucket_range.start() + *bucket_range.end()) / 2;
+
+            if histogram.add(val, *n).is_err() {
+                // Fails because of overflow: too small a grouping power means
+                // too many buckets of the original histogram map to the same
+                // bucket in the new one.
+                return Err(BuildError::GroupingPowerTooLow);
+            }
+        }
+
+        Ok(histogram)
+    }
+
     /// Adds the other histogram to this histogram and returns the result as a
     /// new histogram.
     ///
@@ -250,6 +285,7 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn size() {
@@ -307,6 +343,48 @@ mod tests {
                 range: 1024..=1031,
             })
         );
+    }
+
+    #[test]
+    // Tests downsampling
+    fn downsample() {
+        let mut histogram = Histogram::new(8, 32).unwrap();
+        let mut vals: Vec<u64> = Vec::with_capacity(10000);
+        let mut rng = rand::thread_rng();
+
+        // Generate 10,000 values to store in a sorted array and a histogram
+        for _ in 0..10000 {
+            let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
+            vals.push(v);
+            let _ = histogram.increment(v);
+        }
+        vals.sort();
+
+        // List of percentiles to query and validate
+        let mut percentiles: Vec<f64> = Vec::with_capacity(109);
+        for i in 20..99 {
+            percentiles.push(i as f64);
+        }
+        let mut tail = vec![
+            99.1, 99.2, 99.3, 99.4, 99.5, 99.6, 99.7, 99.8, 99.9, 99.99, 100.0,
+        ];
+        percentiles.append(&mut tail);
+
+        // Downsample and check the percentiles lie within error margin
+        for factor in 1..4 {
+            let error = histogram.config.error();
+
+            for p in &percentiles {
+                let v = vals[((*p * 100.0) as usize) - 1];
+
+                // Value and relative error from full histogram
+                let vhist = histogram.percentile(*p).unwrap().end();
+                let e = (v.abs_diff(vhist) as f64) * 100.0 / (v as f64);
+                assert!(e < error);
+            }
+
+            histogram = histogram.downsample(factor).unwrap();
+        }
     }
 
     // Return four histograms (three with identical configs and one with a
