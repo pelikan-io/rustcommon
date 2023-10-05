@@ -8,8 +8,6 @@ pub enum BuildError {
     MaxPowerTooHigh,
     #[error("max power is too low, check that a + b < n")]
     MaxPowerTooLow,
-    #[error("grouping power is too low, must be > 0")]
-    GroupingPowerTooLow,
     #[error("boxed slice length does not match the config")]
     FromRawWrongLength,
     #[error("sliding window interval cannot be greater than 1 hour")]
@@ -36,4 +34,6 @@ pub enum Error {
     IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
+    #[error("an unknown error occurred")]
+    Unknown,
 }

@@ -1,4 +1,4 @@
-use crate::{Bucket, BuildError, Config, Error, Histogram};
+use crate::{Bucket, Config, Error, Histogram};
 use std::time::SystemTime;
 
 /// A snapshot of a histogram across a time range.
@@ -37,7 +37,7 @@ impl Snapshot {
     /// The new histogram is smaller but with greater relative error. The
     /// reduction factor should be smaller than the histogram's existing
     /// grouping power.
-    pub fn downsample(&self, factor: u8) -> Result<Snapshot, BuildError> {
+    pub fn downsample(&self, factor: u8) -> Result<Snapshot, Error> {
         let histogram = self.histogram.downsample(factor)?;
 
         Ok(Self {

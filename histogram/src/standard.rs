@@ -130,36 +130,36 @@ impl Histogram {
         }
     }
 
-    /// Returns a new histogram with a reduced grouping power.
+    /// Returns a new histogram with a reduced grouping power. The specified
+    /// reduction factor should be 0 < factor < existing grouping power.
     ///
     /// The specified factor determines how much the grouping power is reduced
-    /// by and should be smaller than the histogram's existing grouping power.
-    /// Every step of grouping power halves the total number of buckets (and
-    /// hence total size of thie histogram), while doubling the error.
+    /// by, with every step of grouping power approximately halvomh the total
+    /// number of buckets (and hence total size of thie histogram), while
+    /// doubling the relative error.
     ///
     /// This works by iterating over every bucket in the existing histogram
     /// and inserting the contained values into the new histogram. Since we
     /// do not know the exact values of the data points (only that they lie
     /// within the bucket's range), we pick a pessimistic high value.
-    pub fn downsample(&self, factor: u8) -> Result<Histogram, BuildError> {
+    pub fn downsample(&self, factor: u8) -> Result<Histogram, Error> {
         let grouping_power = self.config.grouping_power();
 
-        if grouping_power <= factor {
-            return Err(BuildError::GroupingPowerTooLow);
+        if factor == 0 || grouping_power <= factor {
+            return Err(Error::OutOfRange);
         }
 
-        let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
+        let histogram = Histogram::new(grouping_power - factor, self.config.max_value_power());
+        if histogram.is_err() {
+            // Parameters have been validated; should never occur
+            return Err(Error::Unknown);
+        }
+        let mut histogram = histogram.unwrap();
 
         for (i, n) in self.as_slice().iter().enumerate() {
             let bucket_range = self.config.index_to_range(i);
             let val = (*bucket_range.start() + *bucket_range.end()) / 2;
-
-            if histogram.add(val, *n).is_err() {
-                // Fails because of overflow: too small a grouping power means
-                // too many buckets of the original histogram map to the same
-                // bucket in the new one.
-                return Err(BuildError::GroupingPowerTooLow);
-            }
+            histogram.add(val, *n)?;
         }
 
         Ok(histogram)
@@ -353,7 +353,7 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Generate 10,000 values to store in a sorted array and a histogram
-        for _ in 0..10000 {
+        for _ in 0..vals.capacity() {
             let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
             vals.push(v);
             let _ = histogram.increment(v);
@@ -375,7 +375,7 @@ mod tests {
             let error = histogram.config.error();
 
             for p in &percentiles {
-                let v = vals[((*p * 100.0) as usize) - 1];
+                let v = vals[((*p / 100.0 * (vals.len() as f64)) as usize) - 1];
 
                 // Value and relative error from full histogram
                 let vhist = histogram.percentile(*p).unwrap().end();
