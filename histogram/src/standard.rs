@@ -139,9 +139,10 @@ impl Histogram {
     /// doubling the relative error.
     ///
     /// This works by iterating over every bucket in the existing histogram
-    /// and inserting the contained values into the new histogram. Since we
+    /// and inserting the contained values into the new histogram. While we
     /// do not know the exact values of the data points (only that they lie
-    /// within the bucket's range), we pick a pessimistic high value.
+    /// within the bucket's range), it does not matter since the bucket is
+    /// not split during downsampling any any value can be used.
     pub fn downsample(&self, factor: u8) -> Result<Histogram, Error> {
         let grouping_power = self.config.grouping_power();
 
@@ -157,8 +158,7 @@ impl Histogram {
         let mut histogram = histogram.unwrap();
 
         for (i, n) in self.as_slice().iter().enumerate() {
-            let bucket_range = self.config.index_to_range(i);
-            let val = (*bucket_range.start() + *bucket_range.end()) / 2;
+            let val = self.config.index_to_lower_bound(i);
             histogram.add(val, *n)?;
         }
 

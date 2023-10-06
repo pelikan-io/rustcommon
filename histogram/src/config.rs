@@ -165,7 +165,7 @@ impl Config {
     }
 
     /// Convert a bucket index to a lower bound.
-    fn index_to_lower_bound(&self, index: usize) -> u64 {
+    pub(crate) fn index_to_lower_bound(&self, index: usize) -> u64 {
         let g = index as u64 >> self.grouping_power;
         let h = index as u64 - g * (1 << self.grouping_power);
 
@@ -177,7 +177,7 @@ impl Config {
     }
 
     /// Convert a bucket index to a upper inclusive bound.
-    fn index_to_upper_bound(&self, index: usize) -> u64 {
+    pub(crate) fn index_to_upper_bound(&self, index: usize) -> u64 {
         if index as u32 == self.lower_bin_count + self.upper_bin_count - 1 {
             return self.max;
         }
