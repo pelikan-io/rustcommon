@@ -32,6 +32,20 @@ impl Snapshot {
         self.histogram.percentile(percentile)
     }
 
+    /// Returns a new downsampled histogram with a reduced grouping power.
+    ///
+    /// The new histogram is smaller but with greater relative error. The
+    /// reduction factor should be smaller than the histogram's existing
+    /// grouping power.
+    pub fn downsample(&self, factor: u8) -> Result<Snapshot, Error> {
+        let histogram = self.histogram.downsample(factor)?;
+
+        Ok(Self {
+            end: self.end,
+            histogram,
+        })
+    }
+
     /// Merges two snapshots which cover the same time range.
     ///
     /// An error is raised on overflow.

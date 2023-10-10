@@ -34,4 +34,6 @@ pub enum Error {
     IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
+    #[error("an unknown error occurred")]
+    Unknown,
 }
