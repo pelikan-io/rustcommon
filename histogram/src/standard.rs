@@ -142,7 +142,7 @@ impl Histogram {
     /// and inserting the contained values into the new histogram. While we
     /// do not know the exact values of the data points (only that they lie
     /// within the bucket's range), it does not matter since the bucket is
-    /// not split during downsampling any any value can be used.
+    /// not split during downsampling and any value can be used.
     pub fn downsample(&self, factor: u8) -> Result<Histogram, Error> {
         let grouping_power = self.config.grouping_power();
 
