@@ -54,9 +54,8 @@ impl AtomicHistogram {
     }
 
     fn get_or_init(&self) -> &::histogram::AtomicHistogram {
-        self.inner.get_or_init(|| {
-            ::histogram::AtomicHistogram::with_config(&self.config)
-        })
+        self.inner
+            .get_or_init(|| ::histogram::AtomicHistogram::with_config(&self.config))
     }
 }
 
@@ -128,10 +127,8 @@ impl RwLockHistogram {
     }
 
     fn get_or_init(&self) -> &RwLock<::histogram::Histogram> {
-        self.inner.get_or_init(|| {
-            ::histogram::Histogram::with_config(&self.config)
-                .into()
-        })
+        self.inner
+            .get_or_init(|| ::histogram::Histogram::with_config(&self.config).into())
     }
 }
 
