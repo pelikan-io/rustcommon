@@ -1,4 +1,4 @@
-use crate::{BuildError, Error};
+use crate::Error;
 use core::ops::RangeInclusive;
 
 /// The configuration of a histogram which determines the bucketing strategy and
@@ -68,15 +68,15 @@ impl Config {
     /// Create a new histogram `Config` from the parameters. See the struct
     /// documentation [`crate::Config`] for the meaning of the parameters and
     /// their constraints.
-    pub const fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+    pub const fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, Error> {
         // we only allow values up to 2^64
         if max_value_power > 64 {
-            return Err(BuildError::MaxPowerTooHigh);
+            return Err(Error::MaxPowerTooHigh);
         }
 
         // check that the other parameters make sense together
         if grouping_power >= max_value_power {
-            return Err(BuildError::MaxPowerTooLow);
+            return Err(Error::MaxPowerTooLow);
         }
 
         // the cutoff is the point at which the linear range divisions and the

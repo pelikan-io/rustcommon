@@ -1,4 +1,4 @@
-use crate::{BuildError, Config, Error, Histogram, Snapshot};
+use crate::{Config, Error, Histogram, Snapshot};
 use core::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
 
@@ -16,7 +16,7 @@ pub struct AtomicHistogram {
 impl AtomicHistogram {
     /// Construct a new atomic histogram from the provided parameters. See the
     /// documentation for [`crate::Config`] to understand their meaning.
-    pub fn new(p: u8, n: u8) -> Result<Self, BuildError> {
+    pub fn new(p: u8, n: u8) -> Result<Self, Error> {
         let config = Config::new(p, n)?;
 
         Ok(Self::with_config(&config))

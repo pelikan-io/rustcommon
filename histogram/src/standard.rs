@@ -1,4 +1,4 @@
-use crate::{Bucket, BuildError, Config, Error, Snapshot};
+use crate::{Bucket, Config, Error, Snapshot};
 use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
@@ -12,7 +12,7 @@ pub struct Histogram {
 impl Histogram {
     /// Construct a new histogram from the provided parameters. See the
     /// documentation for [`crate::Config`] to understand their meaning.
-    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, Error> {
         let config = Config::new(grouping_power, max_value_power)?;
 
         Ok(Self::with_config(&config))
@@ -147,16 +147,10 @@ impl Histogram {
         let grouping_power = self.config.grouping_power();
 
         if factor == 0 || grouping_power <= factor {
-            return Err(Error::OutOfRange);
+            return Err(Error::MaxPowerTooLow);
         }
 
-        let histogram = Histogram::new(grouping_power - factor, self.config.max_value_power());
-        if histogram.is_err() {
-            // Parameters have been validated; should never occur
-            return Err(Error::Unknown);
-        }
-        let mut histogram = histogram.unwrap();
-
+        let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
         for (i, n) in self.as_slice().iter().enumerate() {
             let val = self.config.index_to_lower_bound(i);
             histogram.add(val, *n)?;

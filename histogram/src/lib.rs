@@ -21,6 +21,6 @@ mod standard;
 pub use atomic::AtomicHistogram;
 pub use bucket::Bucket;
 pub use config::Config;
-pub use errors::{BuildError, Error};
+pub use errors::Error;
 pub use snapshot::Snapshot;
 pub use standard::Histogram;
