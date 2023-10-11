@@ -1,4 +1,4 @@
-use crate::{BuildError, Error};
+use crate::Error;
 use core::ops::RangeInclusive;
 
 /// The configuration of a histogram which determines the bucketing strategy and
@@ -68,15 +68,15 @@ impl Config {
     /// Create a new histogram `Config` from the parameters. See the struct
     /// documentation [`crate::Config`] for the meaning of the parameters and
     /// their constraints.
-    pub const fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+    pub const fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, Error> {
         // we only allow values up to 2^64
         if max_value_power > 64 {
-            return Err(BuildError::MaxPowerTooHigh);
+            return Err(Error::MaxPowerTooHigh);
         }
 
         // check that the other parameters make sense together
         if grouping_power >= max_value_power {
-            return Err(BuildError::MaxPowerTooLow);
+            return Err(Error::MaxPowerTooLow);
         }
 
         // the cutoff is the point at which the linear range divisions and the
@@ -130,6 +130,17 @@ impl Config {
         self.max_value_power
     }
 
+    /// Returns the relative error (in percentage) of this configuration. This
+    /// only applies to the logarithmic bins of the histogram (linear bins have
+    /// a width of 1 and no error). For histograms with no logarithmic bins,
+    /// error for the entire histogram is zero.
+    pub fn error(&self) -> f64 {
+        match self.grouping_power == self.max_value_power - 1 {
+            true => 0.0,
+            false => 100.0 / 2_u64.pow(self.grouping_power as u32) as f64,
+        }
+    }
+
     /// Return the total number of buckets needed for this config.
     pub const fn total_buckets(&self) -> usize {
         (self.lower_bin_count + self.upper_bin_count) as usize
@@ -154,7 +165,7 @@ impl Config {
     }
 
     /// Convert a bucket index to a lower bound.
-    fn index_to_lower_bound(&self, index: usize) -> u64 {
+    pub(crate) fn index_to_lower_bound(&self, index: usize) -> u64 {
         let g = index as u64 >> self.grouping_power;
         let h = index as u64 - g * (1 << self.grouping_power);
 
@@ -166,7 +177,7 @@ impl Config {
     }
 
     /// Convert a bucket index to a upper inclusive bound.
-    fn index_to_upper_bound(&self, index: usize) -> u64 {
+    pub(crate) fn index_to_upper_bound(&self, index: usize) -> u64 {
         if index as u32 == self.lower_bin_count + self.upper_bin_count - 1 {
             return self.max;
         }

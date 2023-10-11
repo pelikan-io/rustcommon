@@ -1,8 +1,8 @@
-use crate::{Bucket, BuildError, Config, Error, Snapshot};
+use crate::{Bucket, Config, Error, Snapshot};
 use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Histogram {
     pub(crate) config: Config,
     pub(crate) start: SystemTime,
@@ -12,7 +12,7 @@ pub struct Histogram {
 impl Histogram {
     /// Construct a new histogram from the provided parameters. See the
     /// documentation for [`crate::Config`] to understand their meaning.
-    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, BuildError> {
+    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, Error> {
         let config = Config::new(grouping_power, max_value_power)?;
 
         Ok(Self::with_config(&config))
@@ -130,17 +130,46 @@ impl Histogram {
         }
     }
 
+    /// Returns a new histogram with a reduced grouping power. The specified
+    /// reduction factor should be 0 < factor < existing grouping power.
+    ///
+    /// The specified factor determines how much the grouping power is reduced
+    /// by, with every step of grouping power approximately halvomh the total
+    /// number of buckets (and hence total size of thie histogram), while
+    /// doubling the relative error.
+    ///
+    /// This works by iterating over every bucket in the existing histogram
+    /// and inserting the contained values into the new histogram. While we
+    /// do not know the exact values of the data points (only that they lie
+    /// within the bucket's range), it does not matter since the bucket is
+    /// not split during downsampling and any value can be used.
+    pub fn downsample(&self, factor: u8) -> Result<Histogram, Error> {
+        let grouping_power = self.config.grouping_power();
+
+        if factor == 0 || grouping_power <= factor {
+            return Err(Error::MaxPowerTooLow);
+        }
+
+        let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
+        for (i, n) in self.as_slice().iter().enumerate() {
+            let val = self.config.index_to_lower_bound(i);
+            histogram.add(val, *n)?;
+        }
+
+        Ok(histogram)
+    }
+
     /// Adds the other histogram to this histogram and returns the result as a
     /// new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
     pub(crate) fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_add(*other).ok_or(Error::Overflow)?;
@@ -154,11 +183,11 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters.
     pub(crate) fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_add(*other);
@@ -173,11 +202,11 @@ impl Histogram {
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
     pub(crate) fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.checked_sub(*other).ok_or(Error::Overflow)?;
@@ -191,11 +220,11 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters.
     pub(crate) fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
-        let mut result = self.clone();
-
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
+
+        let mut result = self.clone();
 
         for (this, other) in result.buckets.iter_mut().zip(other.buckets.iter()) {
             *this = this.wrapping_sub(*other);
@@ -250,6 +279,7 @@ impl<'a> Iterator for Iter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn size() {
@@ -307,5 +337,131 @@ mod tests {
                 range: 1024..=1031,
             })
         );
+    }
+
+    #[test]
+    // Tests downsampling
+    fn downsample() {
+        let mut histogram = Histogram::new(8, 32).unwrap();
+        let mut vals: Vec<u64> = Vec::with_capacity(10000);
+        let mut rng = rand::thread_rng();
+
+        // Generate 10,000 values to store in a sorted array and a histogram
+        for _ in 0..vals.capacity() {
+            let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
+            vals.push(v);
+            let _ = histogram.increment(v);
+        }
+        vals.sort();
+
+        // List of percentiles to query and validate
+        let mut percentiles: Vec<f64> = Vec::with_capacity(109);
+        for i in 20..99 {
+            percentiles.push(i as f64);
+        }
+        let mut tail = vec![
+            99.1, 99.2, 99.3, 99.4, 99.5, 99.6, 99.7, 99.8, 99.9, 99.99, 100.0,
+        ];
+        percentiles.append(&mut tail);
+
+        // Downsample and check the percentiles lie within error margin
+        for factor in 1..4 {
+            let error = histogram.config.error();
+
+            for p in &percentiles {
+                let v = vals[((*p / 100.0 * (vals.len() as f64)) as usize) - 1];
+
+                // Value and relative error from full histogram
+                let vhist = histogram.percentile(*p).unwrap().end();
+                let e = (v.abs_diff(vhist) as f64) * 100.0 / (v as f64);
+                assert!(e < error);
+            }
+
+            histogram = histogram.downsample(factor).unwrap();
+        }
+    }
+
+    // Return four histograms (three with identical configs and one with a
+    // different config) for testing add and subtract. One of the histograms
+    // should be populated with the maximum u64 value to cause overflows.
+    fn build_histograms() -> (Histogram, Histogram, Histogram, Histogram) {
+        let mut h1 = Histogram::new(1, 3).unwrap();
+        let mut h2 = Histogram::new(1, 3).unwrap();
+        let mut h3 = Histogram::new(1, 3).unwrap();
+        let h4 = Histogram::new(7, 32).unwrap();
+
+        for i in 0..h1.config().total_buckets() {
+            h1.as_mut_slice()[i] = 1;
+            h2.as_mut_slice()[i] = 1;
+            h3.as_mut_slice()[i] = u64::MAX;
+        }
+
+        (h1, h2, h3, h4)
+    }
+
+    #[test]
+    // Tests checked add
+    fn checked_add() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.checked_add(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.checked_add(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
+
+        assert_eq!(h.checked_add(&h_overflow), Err(Error::Overflow));
+    }
+
+    #[test]
+    // Tests wrapping add
+    fn wrapping_add() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.wrapping_add(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.wrapping_add(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
+
+        let r = h.wrapping_add(&h_overflow).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    // Tests checked sub
+    fn checked_sub() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.checked_sub(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.checked_sub(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+
+        assert_eq!(h.checked_add(&h_overflow), Err(Error::Overflow));
+    }
+
+    #[test]
+    // Tests wrapping sub
+    fn wrapping_sub() {
+        let (h, h_good, h_overflow, h_mismatch) = build_histograms();
+
+        assert_eq!(
+            h.wrapping_sub(&h_mismatch),
+            Err(Error::IncompatibleParameters)
+        );
+
+        let r = h.wrapping_sub(&h_good).unwrap();
+        assert_eq!(r.as_slice(), &[0, 0, 0, 0, 0, 0]);
+
+        let r = h.wrapping_sub(&h_overflow).unwrap();
+        assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
     }
 }
