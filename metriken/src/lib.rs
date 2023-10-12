@@ -89,7 +89,7 @@ macro_rules! used_in_docs {
 mod counter;
 mod formatter;
 mod gauge;
-mod heatmap;
+pub mod histogram;
 mod lazy;
 mod metadata;
 mod metrics;
@@ -103,7 +103,7 @@ pub use crate::counter::Counter;
 pub use crate::dynmetrics::{DynBoxedMetric, DynPinnedMetric, MetricBuilder};
 pub use crate::formatter::{default_formatter, Format};
 pub use crate::gauge::Gauge;
-pub use crate::heatmap::Heatmap;
+pub use crate::histogram::{AtomicHistogram, RwLockHistogram};
 pub use crate::lazy::Lazy;
 pub use crate::metadata::{Metadata, MetadataIter};
 pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};
@@ -210,7 +210,8 @@ pub enum Value<'a> {
     /// A gauge value.
     Gauge(i64),
 
-    Heatmap(&'a Heatmap),
+    AtomicHistogram(&'a AtomicHistogram),
+    RwLockHistogram(&'a RwLockHistogram),
 
     /// The value of the metric could not be represented using the other
     /// `Value` variants.

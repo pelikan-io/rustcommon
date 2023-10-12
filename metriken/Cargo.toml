@@ -1,6 +1,6 @@
 [package]
 name = "metriken"
-version = "0.2.4"
+version = "0.3.0"
 edition = "2021"
 authors = [
 	"Brian Martin <brian@iop.systems>",
@@ -13,7 +13,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
 metriken-derive = { version = "0.2.0", path = "./derive" }
-heatmap = { version = "0.7.8", path = "../heatmap" }
+histogram = { version = "0.8.0", path = "../histogram" }
 
 linkme = "0.3.3"
 once_cell = "1.14.0"
