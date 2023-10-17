@@ -8,6 +8,8 @@ pub enum Error {
     MaxPowerTooHigh,
     #[error("max power is too low, check that a + b < n")]
     MaxPowerTooLow,
+    #[error("histogram contains no observations")]
+    Empty,
     #[error("invalid percentile, must be in range 0.0..=100.0")]
     InvalidPercentile,
     #[error("the value is outside of the storable range")]
@@ -18,4 +20,6 @@ pub enum Error {
     IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
+    #[error("unreachable code encountered")]
+    Unreachable,
 }

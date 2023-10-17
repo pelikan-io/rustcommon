@@ -1,6 +1,4 @@
-// use serde::{Deserialize, Serialize};
-
-use crate::{Error, Snapshot};
+use crate::{Bucket, Config, Error, Snapshot};
 
 /// This histogram is a sparse, columnar representation of the regular
 /// Histogram. It is significantly smaller than a regular Histogram
@@ -8,13 +6,13 @@ use crate::{Error, Snapshot};
 /// occurence. It stores an individual vector for each field
 /// of non-zero buckets. Assuming index[0] = n, (index[0], count[0])
 /// corresponds to the nth bucket.
-// #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct SparseHistogram {
     /// parameters representing the resolution and the range of
     /// the histogram tracking request latencies
-    pub grouping_power: u8,
-    pub max_value_power: u8,
+    pub config: Config,
+    /// total number of data points in the histogram
+    pub total: u128,
     /// indices for the non-zero buckets in the histogram
     pub index: Vec<usize>,
     /// histogram bucket counts corresponding to the indices
@@ -33,13 +31,13 @@ impl SparseHistogram {
     /// Buckets which have values in both histograms are allowed to wrap.
     #[allow(clippy::comparison_chain)]
     pub fn merge(&self, h: &SparseHistogram) -> Result<SparseHistogram, Error> {
-        if self.grouping_power != h.grouping_power || self.max_value_power != h.max_value_power {
+        if self.config != h.config {
             return Err(Error::IncompatibleParameters);
         }
 
         let mut histogram = SparseHistogram {
-            grouping_power: self.grouping_power,
-            max_value_power: self.max_value_power,
+            config: self.config,
+            total: self.total + h.total,
             index: Vec::new(),
             count: Vec::new(),
         };
@@ -76,12 +74,42 @@ impl SparseHistogram {
 
         Ok(histogram)
     }
+
+    /// Return a single percentile from this histogram.
+    ///
+    /// The percentile should be in the inclusive range `0.0..=100.0`. For
+    /// example, the 50th percentile (median) can be found using `50.0`.
+    pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
+        if self.total == 0 {
+            return Err(Error::Empty);
+        }
+
+        if !(0.0..=100.0).contains(&percentile) {
+            return Err(Error::InvalidPercentile);
+        }
+
+        let search = ((self.total as f64) * percentile / 100.0).ceil() as usize;
+        let mut seen: usize = 0;
+        for (idx, count) in self.index.iter().zip(self.count.iter()) {
+            seen += *count as usize;
+            if seen >= search {
+                return Ok(Bucket {
+                    count: *count,
+                    range: self.config.index_to_range(*idx),
+                });
+            }
+        }
+
+        // should be unreachable
+        Err(Error::Unreachable)
+    }
 }
 
 impl From<&Snapshot> for SparseHistogram {
     fn from(snapshot: &Snapshot) -> Self {
         let mut index = Vec::new();
         let mut count = Vec::new();
+        let mut total: u128 = 0;
 
         for (i, bucket) in snapshot
             .into_iter()
@@ -90,12 +118,12 @@ impl From<&Snapshot> for SparseHistogram {
         {
             index.push(i);
             count.push(bucket.count());
+            total += bucket.count() as u128;
         }
 
-        let config = snapshot.config();
         Self {
-            grouping_power: config.grouping_power(),
-            max_value_power: config.max_value_power(),
+            config: snapshot.config(),
+            total,
             index,
             count,
         }
@@ -105,43 +133,73 @@ impl From<&Snapshot> for SparseHistogram {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::standard::Histogram;
 
     #[test]
     fn merge() {
+        let config = Config::new(7, 32).unwrap();
+
         let h1 = SparseHistogram {
-            grouping_power: 8,
-            max_value_power: 32,
+            config,
+            total: 25,
             index: vec![1, 3, 5],
             count: vec![6, 12, 7],
         };
 
         let h2 = SparseHistogram {
-            grouping_power: 8,
-            max_value_power: 32,
+            config,
+            total: 0,
             index: Vec::new(),
             count: Vec::new(),
         };
 
         let h3 = SparseHistogram {
-            grouping_power: 8,
-            max_value_power: 32,
+            config,
+            total: 30,
             index: vec![2, 3, 4, 11],
             count: vec![5, 7, 3, 15],
         };
 
-        let h = h1.merge(&SparseHistogram::default());
+        let hdiff = SparseHistogram {
+            config: Config::new(6, 16).unwrap(),
+            total: 0,
+            index: Vec::new(),
+            count: Vec::new(),
+        };
+
+        let h = h1.merge(&hdiff);
         assert_eq!(h, Err(Error::IncompatibleParameters));
 
         let h = h1.merge(&h2).unwrap();
+        assert_eq!(h.total, 25);
         assert_eq!(h.index, vec![1, 3, 5]);
         assert_eq!(h.count, vec![6, 12, 7]);
 
         let h = h2.merge(&h3).unwrap();
+        assert_eq!(h.total, 30);
         assert_eq!(h.index, vec![2, 3, 4, 11]);
         assert_eq!(h.count, vec![5, 7, 3, 15]);
 
         let h = h1.merge(&h3).unwrap();
+        assert_eq!(h.total, 55);
         assert_eq!(h.index, vec![1, 2, 3, 4, 5, 11]);
         assert_eq!(h.count, vec![6, 5, 19, 3, 7, 15]);
+    }
+
+    #[test]
+    fn percentile() {
+        let mut hstandard = Histogram::new(4, 10).unwrap();
+        for v in 1..1024 {
+            let _ = hstandard.increment(v);
+        }
+
+        let hsparse = SparseHistogram::from(&hstandard.snapshot());
+
+        for percentile in [1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0, 99.9] {
+            let bstandard = hstandard.percentile(percentile).unwrap();
+            let bsparse = hsparse.percentile(percentile).unwrap();
+
+            assert_eq!(bsparse, bstandard);
+        }
     }
 }
