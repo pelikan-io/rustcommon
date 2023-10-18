@@ -21,8 +21,11 @@ pub struct SparseHistogram {
 
 impl SparseHistogram {
     fn add_bucket(&mut self, idx: usize, n: u64) {
-        self.index.push(idx);
-        self.count.push(n);
+        if n != 0 {
+            self.index.push(idx);
+            self.count.push(n);
+            self.total += n as u128;
+        }
     }
 
     /// Merges two Histograms and returns the results in a new Histogram.
@@ -72,6 +75,10 @@ impl SparseHistogram {
             histogram.count.extend(&h.count[i..h.count.len()]);
         }
 
+        // Extended arrays don't increment the total count, so this may
+        // be out of date. Overwrite to the correct value.
+        histogram.total = self.total + h.total;
+
         Ok(histogram)
     }
 
@@ -103,6 +110,61 @@ impl SparseHistogram {
         // should be unreachable
         Err(Error::Unreachable)
     }
+
+    /// Returns a new histogram with a reduced grouping power. The specified
+    /// reduction factor should be 0 < factor < existing grouping power.
+    ///
+    /// This works by iterating over every bucket in the existing histogram
+    /// and inserting the contained values into the new histogram. While we
+    /// do not know the exact values of the data points (only that they lie
+    /// within the bucket's range), it does not matter since the bucket is
+    /// not split during downsampling and any value can be used.
+    pub fn downsample(&self, factor: u8) -> Result<SparseHistogram, Error> {
+        let grouping_power = self.config.grouping_power();
+
+        if factor == 0 || grouping_power <= factor {
+            return Err(Error::MaxPowerTooLow);
+        }
+
+        let config = Config::new(grouping_power - factor, self.config.max_value_power())?;
+        let mut histogram = SparseHistogram {
+            config,
+            total: 0,
+            index: Vec::new(),
+            count: Vec::new(),
+        };
+
+        // Multiple buckets in the old histogram will map to the same bucket
+        // in the new histogram, so we have to aggregate bucket values from the
+        // old histogram before inserting a bucket into the new downsampled
+        // histogram. However, mappings between the histograms monotonically
+        // increase, so once a bucket in the old histogram maps to a higher
+        // bucket in the new histogram than is currently being aggregated,
+        // the bucket can be sealed and inserted into the new histogram.
+        let mut aggregating_idx: usize = 0;
+        let mut aggregating_count: u64 = 0;
+        for (idx, n) in self.index.iter().zip(self.count.iter()) {
+            let new_idx = config.value_to_index(self.config.index_to_lower_bound(*idx))?;
+
+            // If it maps to the currently aggregating bucket, merge counts
+            if new_idx == aggregating_idx {
+                aggregating_count += n;
+                continue;
+            }
+
+            // Does not map to the aggregating bucket, so seal and store that bucket
+            histogram.add_bucket(aggregating_idx, aggregating_count);
+
+            // Start tracking this bucket as the current aggregating bucket
+            aggregating_idx = new_idx;
+            aggregating_count = *n;
+        }
+
+        // Add the final aggregated bucket
+        histogram.add_bucket(aggregating_idx, aggregating_count);
+
+        Ok(histogram)
+    }
 }
 
 impl From<&Snapshot> for SparseHistogram {
@@ -132,6 +194,7 @@ impl From<&Snapshot> for SparseHistogram {
 
 #[cfg(test)]
 mod tests {
+    use rand::Rng;
     use std::collections::HashMap;
 
     use super::*;
@@ -205,16 +268,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn snapshot() {
-        let mut hstandard = Histogram::new(5, 10).unwrap();
+    fn compare_histograms(hstandard: &Histogram, hsparse: &SparseHistogram) {
+        assert_eq!(hstandard.config(), hsparse.config);
 
-        for v in 1..1024 {
-            let _ = hstandard.increment(v);
-        }
-
-        // Convert to sparse and store buckets in a hash for random lookup
-        let hsparse = SparseHistogram::from(&hstandard.snapshot());
         let mut buckets: HashMap<usize, u64> = HashMap::new();
         for (idx, count) in hsparse.index.iter().zip(hsparse.count.iter()) {
             let _ = buckets.insert(*idx, *count);
@@ -225,6 +281,41 @@ mod tests {
                 let v = buckets.get(&idx).unwrap();
                 assert_eq!(*v, *count);
             }
+        }
+    }
+
+    #[test]
+    fn snapshot() {
+        let mut hstandard = Histogram::new(5, 10).unwrap();
+
+        for v in 1..1024 {
+            let _ = hstandard.increment(v);
+        }
+
+        // Convert to sparse and store buckets in a hash for random lookup
+        let hsparse = SparseHistogram::from(&hstandard.snapshot());
+        compare_histograms(&hstandard, &hsparse);
+    }
+
+    #[test]
+    fn downsample() {
+        let mut histogram = Histogram::new(8, 32).unwrap();
+        let mut rng = rand::thread_rng();
+
+        // Generate 10,000 values to store in a sorted array and a histogram
+        for _ in 0..10000 {
+            let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
+            let _ = histogram.increment(v);
+        }
+
+        let hsparse = SparseHistogram::from(&histogram.snapshot());
+        compare_histograms(&histogram, &hsparse);
+
+        // Downsample and compare heck the percentiles lie within error margin
+        for factor in 1..7 {
+            let h1 = histogram.downsample(factor).unwrap();
+            let h2 = hsparse.downsample(factor).unwrap();
+            compare_histograms(&h1, &h2);
         }
     }
 }
