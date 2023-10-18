@@ -11,8 +11,6 @@ pub struct SparseHistogram {
     /// parameters representing the resolution and the range of
     /// the histogram tracking request latencies
     pub config: Config,
-    /// total number of data points in the histogram
-    pub total: u128,
     /// indices for the non-zero buckets in the histogram
     pub index: Vec<usize>,
     /// histogram bucket counts corresponding to the indices
@@ -24,7 +22,6 @@ impl SparseHistogram {
         if n != 0 {
             self.index.push(idx);
             self.count.push(n);
-            self.total += n as u128;
         }
     }
 
@@ -40,7 +37,6 @@ impl SparseHistogram {
 
         let mut histogram = SparseHistogram {
             config: self.config,
-            total: self.total + h.total,
             index: Vec::new(),
             count: Vec::new(),
         };
@@ -75,10 +71,6 @@ impl SparseHistogram {
             histogram.count.extend(&h.count[i..h.count.len()]);
         }
 
-        // Extended arrays don't increment the total count, so this may
-        // be out of date. Overwrite to the correct value.
-        histogram.total = self.total + h.total;
-
         Ok(histogram)
     }
 
@@ -87,15 +79,13 @@ impl SparseHistogram {
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
     pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        if self.total == 0 {
-            return Err(Error::Empty);
-        }
+        let total: u128 = self.count.iter().map(|v| *v as u128).sum();
 
         if !(0.0..=100.0).contains(&percentile) {
             return Err(Error::InvalidPercentile);
         }
 
-        let search = ((self.total as f64) * percentile / 100.0).ceil() as usize;
+        let search = ((total as f64) * percentile / 100.0).ceil() as usize;
         let mut seen: usize = 0;
         for (idx, count) in self.index.iter().zip(self.count.iter()) {
             seen += *count as usize;
@@ -129,7 +119,6 @@ impl SparseHistogram {
         let config = Config::new(grouping_power - factor, self.config.max_value_power())?;
         let mut histogram = SparseHistogram {
             config,
-            total: 0,
             index: Vec::new(),
             count: Vec::new(),
         };
@@ -171,7 +160,6 @@ impl From<&Snapshot> for SparseHistogram {
     fn from(snapshot: &Snapshot) -> Self {
         let mut index = Vec::new();
         let mut count = Vec::new();
-        let mut total: u128 = 0;
 
         for (i, bucket) in snapshot
             .into_iter()
@@ -180,12 +168,10 @@ impl From<&Snapshot> for SparseHistogram {
         {
             index.push(i);
             count.push(bucket.count());
-            total += bucket.count() as u128;
         }
 
         Self {
             config: snapshot.config(),
-            total,
             index,
             count,
         }
@@ -206,28 +192,24 @@ mod tests {
 
         let h1 = SparseHistogram {
             config,
-            total: 25,
             index: vec![1, 3, 5],
             count: vec![6, 12, 7],
         };
 
         let h2 = SparseHistogram {
             config,
-            total: 0,
             index: Vec::new(),
             count: Vec::new(),
         };
 
         let h3 = SparseHistogram {
             config,
-            total: 30,
             index: vec![2, 3, 4, 11],
             count: vec![5, 7, 3, 15],
         };
 
         let hdiff = SparseHistogram {
             config: Config::new(6, 16).unwrap(),
-            total: 0,
             index: Vec::new(),
             count: Vec::new(),
         };
@@ -236,17 +218,14 @@ mod tests {
         assert_eq!(h, Err(Error::IncompatibleParameters));
 
         let h = h1.merge(&h2).unwrap();
-        assert_eq!(h.total, 25);
         assert_eq!(h.index, vec![1, 3, 5]);
         assert_eq!(h.count, vec![6, 12, 7]);
 
         let h = h2.merge(&h3).unwrap();
-        assert_eq!(h.total, 30);
         assert_eq!(h.index, vec![2, 3, 4, 11]);
         assert_eq!(h.count, vec![5, 7, 3, 15]);
 
         let h = h1.merge(&h3).unwrap();
-        assert_eq!(h.total, 55);
         assert_eq!(h.index, vec![1, 2, 3, 4, 5, 11]);
         assert_eq!(h.count, vec![6, 5, 19, 3, 7, 15]);
     }
