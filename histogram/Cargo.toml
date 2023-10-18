@@ -9,11 +9,15 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
+serde = { version = "1.0.144", features = ["derive"], optional = true }
 thiserror = "1.0.47"
 
 [dev-dependencies]
 criterion = "0.5.1"
 rand = "0.8.5"
+
+[features]
+serde-serialize = ["serde"]
 
 [[bench]]
 name = "histogram"
