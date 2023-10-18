@@ -132,6 +132,8 @@ impl From<&Snapshot> for SparseHistogram {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::standard::Histogram;
 
@@ -200,6 +202,29 @@ mod tests {
             let bsparse = hsparse.percentile(percentile).unwrap();
 
             assert_eq!(bsparse, bstandard);
+        }
+    }
+
+    #[test]
+    fn snapshot() {
+        let mut hstandard = Histogram::new(5, 10).unwrap();
+
+        for v in 1..1024 {
+            let _ = hstandard.increment(v);
+        }
+
+        // Convert to sparse and store buckets in a hash for random lookup
+        let hsparse = SparseHistogram::from(&hstandard.snapshot());
+        let mut buckets: HashMap<usize, u64> = HashMap::new();
+        for (idx, count) in hsparse.index.iter().zip(hsparse.count.iter()) {
+            let _ = buckets.insert(*idx, *count);
+        }
+
+        for (idx, count) in hstandard.as_slice().iter().enumerate() {
+            if *count != 0 {
+                let v = buckets.get(&idx).unwrap();
+                assert_eq!(*v, *count);
+            }
         }
     }
 }
