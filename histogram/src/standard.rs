@@ -365,7 +365,8 @@ mod tests {
         percentiles.append(&mut tail);
 
         // Downsample and check the percentiles lie within error margin
-        for factor in 1..4 {
+        let h = histogram.clone();
+        for factor in 1..7 {
             let error = histogram.config.error();
 
             for p in &percentiles {
@@ -377,7 +378,7 @@ mod tests {
                 assert!(e < error);
             }
 
-            histogram = histogram.downsample(factor).unwrap();
+            histogram = h.downsample(factor).unwrap();
         }
     }
 
