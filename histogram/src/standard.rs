@@ -134,8 +134,8 @@ impl Histogram {
     /// reduction factor should be 0 < factor < existing grouping power.
     ///
     /// The specified factor determines how much the grouping power is reduced
-    /// by, with every step of grouping power approximately halvomh the total
-    /// number of buckets (and hence total size of thie histogram), while
+    /// by, with every step of grouping power approximately halves the total
+    /// number of buckets (and hence total size of the histogram), while
     /// doubling the relative error.
     ///
     /// This works by iterating over every bucket in the existing histogram
@@ -152,8 +152,11 @@ impl Histogram {
 
         let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
         for (i, n) in self.as_slice().iter().enumerate() {
-            let val = self.config.index_to_lower_bound(i);
-            histogram.add(val, *n)?;
+            // Skip empty buckets
+            if *n != 0 {
+                let val = self.config.index_to_lower_bound(i);
+                histogram.add(val, *n)?;
+            }
         }
 
         Ok(histogram)
