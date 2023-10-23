@@ -18,6 +18,4 @@ pub enum Error {
     IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
-    #[error("unreachable code encountered")]
-    Unreachable,
 }

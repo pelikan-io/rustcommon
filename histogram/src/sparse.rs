@@ -101,8 +101,12 @@ impl SparseHistogram {
             }
         }
 
-        // should be unreachable
-        Err(Error::Unreachable)
+        // should never be reached; return highest bucket if not found
+        let last_idx = self.index.len() - 1;
+        Ok(Bucket {
+            count: self.count[last_idx],
+            range: self.config.index_to_range(self.index[last_idx]),
+        })
     }
 
     /// Returns a new histogram with a reduced grouping power. The specified
