@@ -167,7 +167,7 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
-    pub(crate) fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub fn checked_add(&self, other: &Histogram) -> Result<Histogram, Error> {
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
@@ -185,7 +185,7 @@ impl Histogram {
     /// new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters.
-    pub(crate) fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub fn wrapping_add(&self, other: &Histogram) -> Result<Histogram, Error> {
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
