@@ -72,8 +72,8 @@ impl SparseHistogram {
 
         // Fill remaining values, if any, from the right histogram
         if j < h.index.len() {
-            histogram.index.extend(&h.index[i..h.index.len()]);
-            histogram.count.extend(&h.count[i..h.count.len()]);
+            histogram.index.extend(&h.index[j..h.index.len()]);
+            histogram.count.extend(&h.count[j..h.count.len()]);
         }
 
         Ok(histogram)
@@ -217,8 +217,8 @@ mod tests {
 
         let h3 = SparseHistogram {
             config,
-            index: vec![2, 3, 4, 11],
-            count: vec![5, 7, 3, 15],
+            index: vec![2, 3, 6, 11, 13],
+            count: vec![5, 7, 3, 15, 6],
         };
 
         let hdiff = SparseHistogram {
@@ -235,12 +235,12 @@ mod tests {
         assert_eq!(h.count, vec![6, 12, 7]);
 
         let h = h2.wrapping_add(&h3).unwrap();
-        assert_eq!(h.index, vec![2, 3, 4, 11]);
-        assert_eq!(h.count, vec![5, 7, 3, 15]);
+        assert_eq!(h.index, vec![2, 3, 6, 11, 13]);
+        assert_eq!(h.count, vec![5, 7, 3, 15, 6]);
 
         let h = h1.wrapping_add(&h3).unwrap();
-        assert_eq!(h.index, vec![1, 2, 3, 4, 5, 11]);
-        assert_eq!(h.count, vec![6, 5, 19, 3, 7, 15]);
+        assert_eq!(h.index, vec![1, 2, 3, 5, 6, 11, 13]);
+        assert_eq!(h.count, vec![6, 5, 19, 7, 3, 15, 6]);
     }
 
     #[test]
