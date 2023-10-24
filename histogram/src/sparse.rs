@@ -29,12 +29,13 @@ impl SparseHistogram {
         }
     }
 
-    /// Merges two Histograms and returns the results in a new Histogram.
+    /// Adds the other histogram to this histogram and returns the result as a
+    /// new histogram.
     ///
-    /// Both histograms must have the same configuration parameters.
+    /// An error is returned if the two histograms have incompatible parameters.
     /// Buckets which have values in both histograms are allowed to wrap.
     #[allow(clippy::comparison_chain)]
-    pub fn merge(&self, h: &SparseHistogram) -> Result<SparseHistogram, Error> {
+    pub fn wrapping_add(&self, h: &SparseHistogram) -> Result<SparseHistogram, Error> {
         if self.config != h.config {
             return Err(Error::IncompatibleParameters);
         }
@@ -226,18 +227,18 @@ mod tests {
             count: Vec::new(),
         };
 
-        let h = h1.merge(&hdiff);
+        let h = h1.wrapping_add(&hdiff);
         assert_eq!(h, Err(Error::IncompatibleParameters));
 
-        let h = h1.merge(&h2).unwrap();
+        let h = h1.wrapping_add(&h2).unwrap();
         assert_eq!(h.index, vec![1, 3, 5]);
         assert_eq!(h.count, vec![6, 12, 7]);
 
-        let h = h2.merge(&h3).unwrap();
+        let h = h2.wrapping_add(&h3).unwrap();
         assert_eq!(h.index, vec![2, 3, 4, 11]);
         assert_eq!(h.count, vec![5, 7, 3, 15]);
 
-        let h = h1.merge(&h3).unwrap();
+        let h = h1.wrapping_add(&h3).unwrap();
         assert_eq!(h.index, vec![1, 2, 3, 4, 5, 11]);
         assert_eq!(h.count, vec![6, 5, 19, 3, 7, 15]);
     }
