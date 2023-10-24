@@ -1,7 +1,7 @@
 #[cfg(feature = "serde-serialize")]
 use serde::{Deserialize, Serialize};
 
-use crate::{Bucket, Config, Error, Snapshot};
+use crate::{Bucket, Config, Error, Histogram, Snapshot};
 
 /// This histogram is a sparse, columnar representation of the regular
 /// Histogram. It is significantly smaller than a regular Histogram
@@ -164,25 +164,29 @@ impl SparseHistogram {
     }
 }
 
-impl From<&Snapshot> for SparseHistogram {
-    fn from(snapshot: &Snapshot) -> Self {
+impl From<&Histogram> for SparseHistogram {
+    fn from(histogram: &Histogram) -> Self {
         let mut index = Vec::new();
         let mut count = Vec::new();
 
-        for (i, bucket) in snapshot
-            .into_iter()
-            .enumerate()
-            .filter(|(_i, bucket)| bucket.count() != 0)
-        {
-            index.push(i);
-            count.push(bucket.count());
+        for (idx, n) in histogram.as_slice().iter().enumerate() {
+            if *n > 0 {
+                index.push(idx);
+                count.push(*n);
+            }
         }
 
         Self {
-            config: snapshot.config(),
+            config: histogram.config(),
             index,
             count,
         }
+    }
+}
+
+impl From<&Snapshot> for SparseHistogram {
+    fn from(snapshot: &Snapshot) -> Self {
+        SparseHistogram::from(&snapshot.histogram)
     }
 }
 
@@ -245,7 +249,7 @@ mod tests {
             let _ = hstandard.increment(v);
         }
 
-        let hsparse = SparseHistogram::from(&hstandard.snapshot());
+        let hsparse = SparseHistogram::from(&hstandard);
 
         for percentile in [1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0, 99.9] {
             let bstandard = hstandard.percentile(percentile).unwrap();
@@ -264,7 +268,7 @@ mod tests {
         }
 
         for (idx, count) in hstandard.as_slice().iter().enumerate() {
-            if *count != 0 {
+            if *count > 0 {
                 let v = buckets.get(&idx).unwrap();
                 assert_eq!(*v, *count);
             }
@@ -295,7 +299,7 @@ mod tests {
             let _ = histogram.increment(v);
         }
 
-        let hsparse = SparseHistogram::from(&histogram.snapshot());
+        let hsparse = SparseHistogram::from(&histogram);
         compare_histograms(&histogram, &hsparse);
 
         // Downsample and compare heck the percentiles lie within error margin
