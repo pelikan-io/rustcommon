@@ -9,7 +9,7 @@ use crate::{Bucket, Config, Error, Histogram, Snapshot};
 /// occurence. It stores an individual vector for each field
 /// of non-zero buckets. Assuming index[0] = n, (index[0], count[0])
 /// corresponds to the nth bucket.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
 pub struct SparseHistogram {
     /// parameters representing the resolution and the range of
