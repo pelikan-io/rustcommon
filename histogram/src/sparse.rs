@@ -22,6 +22,24 @@ pub struct SparseHistogram {
 }
 
 impl SparseHistogram {
+    /// Construct a new histogram from the provided parameters. See the
+    /// documentation for [`crate::Config`] to understand their meaning.
+    pub fn new(grouping_power: u8, max_value_power: u8) -> Result<Self, Error> {
+        let config = Config::new(grouping_power, max_value_power)?;
+
+        Ok(Self::with_config(&config))
+    }
+
+    /// Creates a new histogram using a provided [`crate::Config`].
+    pub fn with_config(config: &Config) -> Self {
+        Self {
+            config: *config,
+            index: Vec::new(),
+            count: Vec::new(),
+        }
+    }
+
+    /// Helper function to store a bucket in the histogram.
     fn add_bucket(&mut self, idx: usize, n: u64) {
         if n != 0 {
             self.index.push(idx);
@@ -40,11 +58,7 @@ impl SparseHistogram {
             return Err(Error::IncompatibleParameters);
         }
 
-        let mut histogram = SparseHistogram {
-            config: self.config,
-            index: Vec::new(),
-            count: Vec::new(),
-        };
+        let mut histogram = SparseHistogram::with_config(&self.config);
 
         // Sort and merge buckets from both histograms
         let (mut i, mut j) = (0, 0);
@@ -126,11 +140,7 @@ impl SparseHistogram {
         }
 
         let config = Config::new(grouping_power - factor, self.config.max_value_power())?;
-        let mut histogram = SparseHistogram {
-            config,
-            index: Vec::new(),
-            count: Vec::new(),
-        };
+        let mut histogram = SparseHistogram::with_config(&config);
 
         // Multiple buckets in the old histogram will map to the same bucket
         // in the new histogram, so we have to aggregate bucket values from the
@@ -200,7 +210,7 @@ mod tests {
     use crate::standard::Histogram;
 
     #[test]
-    fn merge() {
+    fn wrapping_add() {
         let config = Config::new(7, 32).unwrap();
 
         let h1 = SparseHistogram {
@@ -209,11 +219,7 @@ mod tests {
             count: vec![6, 12, 7],
         };
 
-        let h2 = SparseHistogram {
-            config,
-            index: Vec::new(),
-            count: Vec::new(),
-        };
+        let h2 = SparseHistogram::with_config(&config);
 
         let h3 = SparseHistogram {
             config,
@@ -221,12 +227,7 @@ mod tests {
             count: vec![5, 7, 3, 15, 6],
         };
 
-        let hdiff = SparseHistogram {
-            config: Config::new(6, 16).unwrap(),
-            index: Vec::new(),
-            count: Vec::new(),
-        };
-
+        let hdiff = SparseHistogram::new(6, 16).unwrap();
         let h = h1.wrapping_add(&hdiff);
         assert_eq!(h, Err(Error::IncompatibleParameters));
 
