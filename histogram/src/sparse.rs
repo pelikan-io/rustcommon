@@ -124,22 +124,20 @@ impl SparseHistogram {
         })
     }
 
-    /// Returns a new histogram with a reduced grouping power. The specified
-    /// reduction factor should be 0 < factor < existing grouping power.
+    /// Returns a new histogram with a reduced grouping power. The reduced
+    /// grouping power should lie in the range (0..existing grouping power).
     ///
     /// This works by iterating over every bucket in the existing histogram
     /// and inserting the contained values into the new histogram. While we
     /// do not know the exact values of the data points (only that they lie
     /// within the bucket's range), it does not matter since the bucket is
     /// not split during downsampling and any value can be used.
-    pub fn downsample(&self, factor: u8) -> Result<SparseHistogram, Error> {
-        let grouping_power = self.config.grouping_power();
-
-        if factor == 0 || grouping_power <= factor {
+    pub fn downsample(&self, grouping_power: u8) -> Result<SparseHistogram, Error> {
+        if grouping_power >= self.config.grouping_power() {
             return Err(Error::MaxPowerTooLow);
         }
 
-        let config = Config::new(grouping_power - factor, self.config.max_value_power())?;
+        let config = Config::new(grouping_power, self.config.max_value_power())?;
         let mut histogram = SparseHistogram::with_config(&config);
 
         // Multiple buckets in the old histogram will map to the same bucket
@@ -305,9 +303,11 @@ mod tests {
         compare_histograms(&histogram, &hsparse);
 
         // Downsample and compare heck the percentiles lie within error margin
-        for factor in 1..7 {
-            let h1 = histogram.downsample(factor).unwrap();
-            let h2 = hsparse.downsample(factor).unwrap();
+        let grouping_power = histogram.config.grouping_power();
+        for factor in 1..grouping_power {
+            let reduced_gp = grouping_power - factor;
+            let h1 = histogram.downsample(reduced_gp).unwrap();
+            let h2 = hsparse.downsample(reduced_gp).unwrap();
             compare_histograms(&h1, &h2);
         }
     }

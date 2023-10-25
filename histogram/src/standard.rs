@@ -130,11 +130,11 @@ impl Histogram {
         }
     }
 
-    /// Returns a new histogram with a reduced grouping power. The specified
-    /// reduction factor should be 0 < factor < existing grouping power.
+    /// Returns a new histogram with a reduced grouping power. The reduced
+    /// grouping power should lie in the range (0..existing grouping power).
     ///
-    /// The specified factor determines how much the grouping power is reduced
-    /// by, with every step of grouping power approximately halves the total
+    /// The difference in grouping powers determines how much histogram size
+    /// is reduced by, with every step approximately halving the total
     /// number of buckets (and hence total size of the histogram), while
     /// doubling the relative error.
     ///
@@ -143,14 +143,12 @@ impl Histogram {
     /// do not know the exact values of the data points (only that they lie
     /// within the bucket's range), it does not matter since the bucket is
     /// not split during downsampling and any value can be used.
-    pub fn downsample(&self, factor: u8) -> Result<Histogram, Error> {
-        let grouping_power = self.config.grouping_power();
-
-        if factor == 0 || grouping_power <= factor {
+    pub fn downsample(&self, grouping_power: u8) -> Result<Histogram, Error> {
+        if grouping_power >= self.config.grouping_power() {
             return Err(Error::MaxPowerTooLow);
         }
 
-        let mut histogram = Histogram::new(grouping_power - factor, self.config.max_value_power())?;
+        let mut histogram = Histogram::new(grouping_power, self.config.max_value_power())?;
         for (i, n) in self.as_slice().iter().enumerate() {
             // Skip empty buckets
             if *n != 0 {
@@ -369,7 +367,8 @@ mod tests {
 
         // Downsample and check the percentiles lie within error margin
         let h = histogram.clone();
-        for factor in 1..7 {
+        let grouping_power = histogram.config.grouping_power();
+        for factor in 1..grouping_power {
             let error = histogram.config.error();
 
             for p in &percentiles {
@@ -381,7 +380,7 @@ mod tests {
                 assert!(e < error);
             }
 
-            histogram = h.downsample(factor).unwrap();
+            histogram = h.downsample(grouping_power - factor).unwrap();
         }
     }
 
