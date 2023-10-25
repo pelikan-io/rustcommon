@@ -131,7 +131,7 @@ impl Histogram {
     }
 
     /// Returns a new histogram with a reduced grouping power. The reduced
-    /// grouping power should lie in the range (0, existing grouping power).
+    /// grouping power should lie in the range (0..existing grouping power).
     ///
     /// The difference in grouping powers determines how much histogram size
     /// is reduced by, with every step approximately halving the total

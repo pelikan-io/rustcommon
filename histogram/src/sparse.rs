@@ -125,7 +125,7 @@ impl SparseHistogram {
     }
 
     /// Returns a new histogram with a reduced grouping power. The reduced
-    /// grouping power should lie in the range (0, existing grouping power).
+    /// grouping power should lie in the range (0..existing grouping power).
     ///
     /// This works by iterating over every bucket in the existing histogram
     /// and inserting the contained values into the new histogram. While we
