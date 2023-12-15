@@ -3,14 +3,12 @@ resolver="2"
 members = [
     "awaken",
     "clocksource",
-    # "heatmap",
     "histogram",
     "metriken",
     "metriken/derive",
     "ratelimit",
     "ringlog",
     "switchboard",
-    # "waterfall",
 ]
 
 [profile.bench]
