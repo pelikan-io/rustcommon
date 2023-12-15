@@ -24,10 +24,10 @@ fn realtime_precise() {
 
         // check that the clock has moved forward and not backward
         if t0 < t2 && t2 < t4 {
-            assert!(ut0 <= ut1);
-            assert!(ut1 <= ut2);
-            assert!(ut2 <= ut3);
-            assert!(ut3 <= ut4);
+            assert!(ut0 <= ut1, "ut0: {ut0} ut1: {ut1}");
+            assert!(ut1 <= ut2, "ut1: {ut1} ut2: {ut2}");
+            assert!(ut2 <= ut3, "ut2: {ut2} ut3: {ut3}");
+            assert!(ut3 <= ut4, "ut3: {ut3} ut4: {ut4}");
         }
     }
 }

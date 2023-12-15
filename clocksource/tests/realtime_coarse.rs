@@ -28,10 +28,10 @@ fn realtime_coarse() {
             let ut2 = (ut2 / 1_000_000_000) as u32;
             let ut4 = (ut4 / 1_000_000_000) as u32;
 
-            assert!(ut0 <= ut1);
-            assert!(ut1 <= ut2);
-            assert!(ut2 <= ut3);
-            assert!(ut3 <= ut4);
+            assert!(ut0 <= ut1, "ut0: {ut0} ut1: {ut1}");
+            assert!(ut1 <= ut2, "ut1: {ut1} ut2: {ut2}");
+            assert!(ut2 <= ut3, "ut2: {ut2} ut3: {ut3}");
+            assert!(ut3 <= ut4, "ut3: {ut3} ut4: {ut4}");
         }
     }
 }
