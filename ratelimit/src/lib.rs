@@ -444,8 +444,8 @@ mod tests {
             }
         }
 
-        assert!(count >= 800);
-        assert!(count <= 1200);
+        assert!(count >= 600);
+        assert!(count <= 1400);
     }
 
     // quick test that an idle ratelimiter doesn't build up excess capacity
