@@ -83,7 +83,7 @@ mod test {
         #[cfg(not(target_os = "windows"))]
         assert_eq!(std::mem::size_of::<AtomicHistogram>(), 64);
 
-         #[cfg(target_os = "windows")]
+        #[cfg(target_os = "windows")]
         assert_eq!(std::mem::size_of::<AtomicHistogram>(), 56);
     }
 
