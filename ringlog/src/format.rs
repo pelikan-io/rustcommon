@@ -4,7 +4,7 @@
 
 use crate::*;
 
-use clocksource::datetime::{DateTime};
+use clocksource::datetime::DateTime;
 
 pub type FormatFunction = fn(
     write: &mut dyn std::io::Write,
@@ -32,10 +32,5 @@ pub fn klog_format(
     now: DateTime,
     record: &Record,
 ) -> Result<(), std::io::Error> {
-    writeln!(
-        w,
-        "{} {}",
-        now,
-        record.args()
-    )
+    writeln!(w, "{} {}", now, record.args())
 }
