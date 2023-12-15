@@ -4,7 +4,7 @@
 
 use crate::*;
 
-use clocksource::{DateTime, SecondsFormat};
+use clocksource::datetime::DateTime;
 
 pub type FormatFunction = fn(
     write: &mut dyn std::io::Write,
@@ -20,7 +20,7 @@ pub fn default_format(
     writeln!(
         w,
         "{} {} [{}] {}",
-        now.to_rfc3339_opts(SecondsFormat::Millis, false),
+        now,
         record.level(),
         record.module_path().unwrap_or("<unnamed>"),
         record.args()
@@ -32,10 +32,5 @@ pub fn klog_format(
     now: DateTime,
     record: &Record,
 ) -> Result<(), std::io::Error> {
-    writeln!(
-        w,
-        "{} {}",
-        now.to_rfc3339_opts(SecondsFormat::Millis, false),
-        record.args()
-    )
+    writeln!(w, "{} {}", now, record.args())
 }

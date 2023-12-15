@@ -179,6 +179,10 @@ mod tests {
 
     #[test]
     fn size() {
+        #[cfg(not(target_os = "windows"))]
         assert_eq!(std::mem::size_of::<Snapshot>(), 80);
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(std::mem::size_of::<Snapshot>(), 64);
     }
 }

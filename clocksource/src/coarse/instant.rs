@@ -24,35 +24,8 @@ pub struct Instant {
 
 impl Instant {
     /// Return an `Instant` that represents the current moment.
-    #[cfg(not(target_os = "macos"))]
     pub fn now() -> Self {
-        let mut ts = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe {
-            libc::clock_gettime(libc::CLOCK_MONOTONIC_COARSE, &mut ts);
-        }
-
-        let now = ts.tv_sec as u32;
-
-        Self { secs: now }
-    }
-
-    /// Return an `Instant` that represents the current moment.
-    #[cfg(target_os = "macos")]
-    pub fn now() -> Self {
-        let mut ts = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe {
-            libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts);
-        }
-
-        let now = ts.tv_sec as u32;
-
-        Self { secs: now }
+        crate::sys::monotonic::coarse()
     }
 
     /// Return the elapsed time, in nanoseconds, since the original timestamp.

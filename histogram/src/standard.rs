@@ -284,7 +284,11 @@ mod tests {
 
     #[test]
     fn size() {
+        #[cfg(not(target_os = "windows"))]
         assert_eq!(std::mem::size_of::<Histogram>(), 64);
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(std::mem::size_of::<Histogram>(), 56);
     }
 
     #[test]

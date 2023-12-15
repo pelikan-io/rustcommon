@@ -31,35 +31,8 @@ impl UnixInstant {
     pub const EPOCH: UnixInstant = UnixInstant { secs: 0 };
 
     /// Return a `UnixInstant` that represents the current moment.
-    #[cfg(not(target_os = "macos"))]
     pub fn now() -> Self {
-        let mut ts = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe {
-            libc::clock_gettime(libc::CLOCK_REALTIME_COARSE, &mut ts);
-        }
-
-        let now = ts.tv_sec as u32;
-
-        Self { secs: now }
-    }
-
-    /// Return a `UnixInstant` that represents the current moment.
-    #[cfg(target_os = "macos")]
-    pub fn now() -> Self {
-        let mut ts = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe {
-            libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
-        }
-
-        let now = ts.tv_sec as u32;
-
-        Self { secs: now }
+        crate::sys::realtime::coarse()
     }
 
     /// Return the elapsed time, in nanoseconds, since the original timestamp.

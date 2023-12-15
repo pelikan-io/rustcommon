@@ -26,19 +26,7 @@ pub struct Instant {
 impl Instant {
     /// Return an `Instant` that represents the current moment.
     pub fn now() -> Self {
-        let mut ts = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe {
-            libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts);
-        }
-
-        let now = (ts.tv_sec as u64)
-            .wrapping_mul(1_000_000_000)
-            .wrapping_add(ts.tv_nsec as u64);
-
-        Self { ns: now }
+        crate::sys::monotonic::precise()
     }
 
     /// Return the elapsed time, in nanoseconds, since the original timestamp.

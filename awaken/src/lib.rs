@@ -35,6 +35,7 @@ impl Waker {
         }
     }
 
+    #[cfg(target_os = "linux")]
     pub fn as_raw_fd(&self) -> Option<RawFd> {
         self.inner.as_raw_fd()
     }
@@ -47,9 +48,11 @@ impl Waker {
 pub trait GenericWaker: Send + Sync {
     fn wake(&self) -> std::io::Result<()>;
 
+    #[cfg(target_os = "linux")]
     fn as_raw_fd(&self) -> Option<RawFd>;
 }
 
+#[cfg(target_os = "linux")]
 use std::os::unix::prelude::RawFd;
 
 pub use mio::Waker as MioWaker;
@@ -59,6 +62,7 @@ impl GenericWaker for MioWaker {
         self.wake()
     }
 
+    #[cfg(target_os = "linux")]
     fn as_raw_fd(&self) -> Option<RawFd> {
         None
     }
