@@ -105,10 +105,10 @@ impl Ratelimiter {
     }
 
     /// Return the current interval between refills.
-    pub fn refill_interval(&self) -> Duration {
+    pub fn refill_interval(&self) -> core::time::Duration {
         let parameters = self.parameters.read();
 
-        Duration::from_nanos(parameters.refill_interval.as_nanos())
+        core::time::Duration::from_nanos(parameters.refill_interval.as_nanos())
     }
 
     /// Allows for changing the interval between refills at runtime.
@@ -216,10 +216,8 @@ impl Ratelimiter {
             intervals = (time - refill_at).as_nanos() / parameters.refill_interval.as_nanos() + 1;
 
             // calculate when the following refill would be
-            let next_refill = refill_at
-                + Duration::from_nanos(
-                    intervals * parameters.refill_interval.as_nanos(),
-                );
+            let next_refill =
+                refill_at + Duration::from_nanos(intervals * parameters.refill_interval.as_nanos());
 
             // compare/exchange, if race, loop and check if we still need to
             // refill before trying again
@@ -394,10 +392,7 @@ impl Builder {
         };
 
         let refill_at = AtomicInstant::new(
-            Instant::now()
-                + Duration::from_nanos(
-                    self.refill_interval.as_nanos() as u64,
-                ),
+            Instant::now() + self.refill_interval,
         );
 
         Ok(Ratelimiter {
