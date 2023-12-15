@@ -9,7 +9,7 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-awaken = { version = "0.1.0", path = "../awaken" }
+awaken = { version = "0.2.0", path = "../awaken" }
 crossbeam-queue = "0.3.8"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
