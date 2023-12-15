@@ -53,14 +53,10 @@
 //! }
 //! ```
 
-use clocksource::Nanoseconds;
+use clocksource::precise::{AtomicInstant, Duration, Instant};
 use core::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::RwLock;
 use thiserror::Error;
-
-type Duration = clocksource::Duration<Nanoseconds<u64>>;
-type Instant = clocksource::Instant<Nanoseconds<u64>>;
-type AtomicInstant = clocksource::Instant<Nanoseconds<AtomicU64>>;
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -221,7 +217,7 @@ impl Ratelimiter {
 
             // calculate when the following refill would be
             let next_refill = refill_at
-                + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(
+                + Duration::from_nanos(
                     intervals * parameters.refill_interval.as_nanos(),
                 );
 
@@ -399,7 +395,7 @@ impl Builder {
 
         let refill_at = AtomicInstant::new(
             Instant::now()
-                + clocksource::Duration::<Nanoseconds<u64>>::from_nanos(
+                + Duration::from_nanos(
                     self.refill_interval.as_nanos() as u64,
                 ),
         );
