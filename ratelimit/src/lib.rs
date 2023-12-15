@@ -391,9 +391,7 @@ impl Builder {
             refill_interval: Duration::from_nanos(self.refill_interval.as_nanos() as u64),
         };
 
-        let refill_at = AtomicInstant::new(
-            Instant::now() + self.refill_interval,
-        );
+        let refill_at = AtomicInstant::new(Instant::now() + self.refill_interval);
 
         Ok(Ratelimiter {
             available,
