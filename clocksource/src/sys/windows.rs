@@ -36,14 +36,8 @@ pub mod monotonic {
     }
 
     pub fn coarse() -> crate::coarse::Instant {
-        let count = count();
-        let frequency = frequency();
-
-        let q = count / frequency;
-        let r = count % frequency;
-
         crate::coarse::Instant {
-            secs: (q + r / frequency) as u32,
+            secs: count() / frequency() as u32,
         }
     }
 
@@ -51,8 +45,8 @@ pub mod monotonic {
         let count = count();
         let frequency = frequency();
 
-        let q = count / frequency;
-        let r = count % frequency;
+        let secs = count / frequency;
+        let ns = count % frequency;
 
         crate::precise::Instant {
             ns: q * NANOS_PER_SEC + r * NANOS_PER_SEC / frequency,
