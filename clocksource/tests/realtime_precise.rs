@@ -19,7 +19,7 @@ fn realtime_precise() {
         let ut0 = to_unix_ns(t0);
         let ut1 = t1.duration_since(UnixInstant::EPOCH).as_nanos();
         let ut2 = to_unix_ns(t2);
-        let ut3 = t3.duration_since(UnixInstant::EPOCH).as_secs();
+        let ut3 = t3.duration_since(UnixInstant::EPOCH).as_nanos();
         let ut4 = to_unix_ns(t4);
 
         // check that the clock has moved forward and not backward
