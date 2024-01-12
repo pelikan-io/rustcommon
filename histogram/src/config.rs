@@ -57,6 +57,7 @@ use serde::{Deserialize, Serialize};
 /// * `max_value_power` must be greater than `grouping_power
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Config {
     max: u64,
     grouping_power: u8,

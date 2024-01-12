@@ -11,6 +11,7 @@ use crate::{Bucket, Config, Error, Histogram, Snapshot};
 /// corresponds to the nth bucket.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct SparseHistogram {
     /// parameters representing the resolution and the range of
     /// the histogram tracking request latencies
