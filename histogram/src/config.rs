@@ -1,7 +1,7 @@
 use crate::Error;
 use core::ops::RangeInclusive;
 
-#[cfg(feature = "serde-serialize")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// The configuration of a histogram which determines the bucketing strategy and
@@ -56,7 +56,7 @@ use serde::{Deserialize, Serialize};
 /// * `max_value_power` must be in the range `0..=64`
 /// * `max_value_power` must be greater than `grouping_power
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde-serialize", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Config {
     max: u64,
