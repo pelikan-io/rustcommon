@@ -16,7 +16,7 @@ use std::ops::Deref;
 use std::pin::Pin;
 
 use crate::null::NullMetric;
-use crate::{default_formatter, Format, Metadata, Metric, MetricEntry, MetricWrapper};
+use crate::{default_formatter, Format, Metadata, Metric, MetricEntry};
 
 // We use parking_lot here since it avoids lock poisioning
 use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
@@ -98,7 +98,7 @@ impl MetricBuilder {
     /// Convert this builder directly into a [`MetricEntry`].
     pub fn into_entry(self) -> MetricEntry {
         MetricEntry {
-            metric: MetricWrapper(&NullMetric),
+            metric: &NullMetric,
             name: self.name,
             description: self.desc,
             metadata: Metadata::new(self.metadata),
@@ -213,7 +213,7 @@ impl<M: Metric> DynPinnedMetric<M> {
     /// Calling this multiple times will result in the same metric being
     /// registered multiple times under potentially different names.
     pub fn register(self: Pin<&Self>, mut entry: MetricEntry) {
-        entry.metric = MetricWrapper(self.storage.metric());
+        entry.metric = self.storage.metric();
 
         // SAFETY:
         // To prove that this is safe we need to list out a few guarantees/requirements:

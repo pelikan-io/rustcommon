@@ -160,20 +160,13 @@ pub(crate) fn metric(
         .collect();
 
     item.expr = Box::new(parse_quote! {{
-        use #private::phf;
-
-        static __METADATA: #private::phf::Map<&'static str, &'static str> =
-            #private::phf::phf_map! { #( #attrs, )* };
-
-        #[#private::linkme::distributed_slice(#private::METRICS)]
-        #[linkme(crate = #private::linkme)]
-        static __: #krate::MetricEntry = #private::entry(
-            &#static_name,
-            #name,
-            #description,
-            &__METADATA,
-            #formatter,
-        );
+        #private::declare_metric_v1! {
+            metric: #static_name,
+            name: #name,
+            description: #description,
+            metadata: { #( #attrs, )* },
+            formatter: #formatter,
+        };
 
         #static_expr
     }});

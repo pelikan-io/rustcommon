@@ -65,7 +65,7 @@ impl Metric for AtomicHistogram {
     }
 
     fn value(&self) -> Option<Value> {
-        Some(Value::AtomicHistogram(self))
+        Some(Value::Other(self))
     }
 }
 
@@ -138,6 +138,6 @@ impl Metric for RwLockHistogram {
     }
 
     fn value(&self) -> Option<Value> {
-        Some(Value::RwLockHistogram(self))
+        Some(Value::Other(self))
     }
 }
