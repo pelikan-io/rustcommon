@@ -19,5 +19,8 @@ links = "metriken-core"
 [dependencies]
 linkme = "0.3"
 parking_lot = "0.12"
-phf = "0.11"
+phf = { version = "0.11", features = ["macros"] }
+
+[dev-dependencies]
+metriken = { version = "0.5", path = ".." }
 
