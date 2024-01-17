@@ -7,6 +7,7 @@ authors = [
     "Sean Lynch <sean@iop.systems>",
 ]
 license = "Apache-2.0"
+description = "A fast and lightweight metrics library"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
@@ -22,5 +23,5 @@ parking_lot = "0.12"
 phf = { version = "0.11", features = ["macros"] }
 
 [dev-dependencies]
-metriken = { version = "0.5", path = ".." }
+metriken = { path = ".." }
 
