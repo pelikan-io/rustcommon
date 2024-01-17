@@ -4,7 +4,7 @@ version = "0.5.0"
 edition = "2021"
 authors = [
 	"Brian Martin <brian@pelikan.io>",
-	"Sean Lynch <seanl@twitter.com>",
+	"Sean Lynch <sean@iop.systems>"
 ]
 license = "Apache-2.0"
 description = "Proc macros for metriken"
@@ -17,6 +17,6 @@ proc-macro = true
 
 [dependencies]
 proc-macro2 = "1.0.39"
-proc-macro-crate = "1.0.0"
+proc-macro-crate = "3.0.0"
 quote = "1.0.9"
-syn = { version = "1.0.95", features = ["full", "parsing"] }
+syn = { version = "2.0", features = ["full", "parsing"] }
