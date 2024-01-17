@@ -30,7 +30,7 @@
 //! # assert_eq!(names[0], "COUNTER_A");
 //! # assert_eq!(names[1], "my.metric.name");
 //! ```
-//! 
+//!
 //! If you want to create and remove metrics dynamically at runtime check out
 //! the [`dynmetrics`] module.
 //!
