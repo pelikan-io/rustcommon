@@ -1,6 +1,6 @@
 [package]
 name = "metriken"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = [
 	"Brian Martin <brian@iop.systems>",
@@ -11,19 +11,13 @@ description = "A fast and lightweight metrics library"
 homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
-# we use this to prevent multiple versions of metriken from being used in the
-# same project
-links = "metriken"
-
 [dependencies]
-metriken-derive = { version = "=0.4.0", path = "./derive" }
+metriken-core = { version = "0.1", path = "core" }
+metriken-derive = { version = "=0.5.0", path = "./derive" }
 histogram = { version = "0.9.0", path = "../histogram" }
 
-linkme = "0.3.3"
 once_cell = "1.14.0"
 parking_lot = "0.12.1"
-
-phf = { version = "0.11.2", features = ["macros"] }
 
 [dev-dependencies]
 trybuild = "1.0"
