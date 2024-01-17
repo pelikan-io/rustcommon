@@ -2,7 +2,10 @@
 name = "metriken-derive"
 version = "0.5.0"
 edition = "2021"
-authors = ["Brian Martin <brian@pelikan.io>", "Sean Lynch <seanl@twitter.com>"]
+authors = [
+	"Brian Martin <brian@pelikan.io>",
+	"Sean Lynch <sean@iop.systems>"
+]
 license = "Apache-2.0"
 description = "Proc macros for metriken"
 homepage = "https://github.com/pelikan-io/rustcommon"
