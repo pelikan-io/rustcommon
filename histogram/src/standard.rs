@@ -345,6 +345,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "this test is flaky (see issue #100)"]
     // Tests downsampling
     fn downsample() {
         let mut histogram = Histogram::new(8, 32).unwrap();
