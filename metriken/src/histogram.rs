@@ -7,7 +7,7 @@ pub use histogram::{Bucket, Config, Error, Snapshot};
 
 /// A histogram that uses free-running atomic counters to track the distribution
 /// of values. They are only useful for recording values and producing
-/// [`crate::Snapshot`]s of the histogram state which can then be used for
+/// [`histogram::Snapshot`]s of the histogram state which can then be used for
 /// reporting.
 ///
 /// The `AtomicHistogram` should be preferred when individual events are being
@@ -71,7 +71,7 @@ impl Metric for AtomicHistogram {
 
 /// A histogram that uses free-running non-atomic counters to track the
 /// distribution of values. They are only useful for bulk recording of values
-/// and producing [`crate::Snapshot`]s of the histogram state which can then be
+/// and producing [`histogram::Snapshot`]s of the histogram state which can then be
 /// used for reporting.
 ///
 /// The `AtomicHistogram` should be preferred when individual events are being

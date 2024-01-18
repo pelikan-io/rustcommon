@@ -35,7 +35,7 @@
 //!
 //! # Accessing Metrics
 //! All metrics registered via the [`metric`] macro can be accessed by calling
-//! the [`metrics`] function. This will return an instance of the [`Metric`]
+//! the [`metrics()`] function. This will return an instance of the [`Metric`]
 //! struct which allows you to access all staticly and dynamically registered
 //! metrics.
 //!
@@ -67,9 +67,8 @@
 //! is registered via the [`metric`] attribute.
 
 use std::any::Any;
-use std::borrow::Cow;
 
-use crate::export::MetricWrapper;
+use crate::export::WrapMetric;
 
 /// A helper macro for marking imports as being used.
 ///
@@ -91,7 +90,6 @@ mod formatter;
 mod gauge;
 pub mod histogram;
 mod lazy;
-mod metadata;
 mod metrics;
 mod null;
 
@@ -105,9 +103,10 @@ pub use crate::formatter::{default_formatter, Format};
 pub use crate::gauge::Gauge;
 pub use crate::histogram::{AtomicHistogram, RwLockHistogram};
 pub use crate::lazy::Lazy;
-pub use crate::metadata::{Metadata, MetadataIter};
 pub use crate::metrics::{metrics, DynMetricsIter, Metrics, MetricsIter};
 
+#[doc(inline)]
+pub use metriken_core::{Metadata, MetadataIter};
 pub use metriken_derive::metric;
 
 /// A counter holds a unsigned 64bit monotonically non-decreasing value. The
@@ -136,37 +135,51 @@ pub type LazyGauge = Lazy<Gauge>;
 
 #[doc(hidden)]
 pub mod export {
-    pub extern crate linkme;
-    pub extern crate phf;
+    pub use metriken_core::declare_metric_v1;
 
-    use crate::{Metadata, Metric};
+    use crate::Metric;
 
-    /// You can't use `dyn <trait>s` directly in const methods for now but a wrapper
-    /// is fine. This wrapper is a work around to allow us to use const constructors
-    /// for the MetricEntry struct.
-    pub struct MetricWrapper(pub *const dyn Metric);
+    use std::ops::{Deref, DerefMut};
 
-    #[linkme::distributed_slice]
-    pub static METRICS: [crate::MetricEntry] = [..];
+    pub struct WrapMetric<T>(T);
 
-    pub const fn entry(
-        metric: &'static dyn crate::Metric,
-        name: &'static str,
-        description: Option<&'static str>,
-        metadata: &'static phf::Map<&'static str, &'static str>,
-        formatter: fn(&crate::MetricEntry, crate::Format) -> String,
-    ) -> crate::MetricEntry {
-        use std::borrow::Cow;
+    impl<T> WrapMetric<T> {
+        pub const fn new(value: T) -> Self {
+            Self(value)
+        }
+    }
 
-        crate::MetricEntry {
-            metric: MetricWrapper(metric),
-            name: Cow::Borrowed(name),
-            description: match description {
-                Some(desc) => Some(Cow::Borrowed(desc)),
-                None => None,
-            },
-            metadata: Metadata::new_static(metadata),
-            formatter,
+    impl<T> Deref for WrapMetric<T> {
+        type Target = T;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl<T> DerefMut for WrapMetric<T> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
+    }
+
+    impl<T: Metric> metriken_core::Metric for WrapMetric<T> {
+        fn is_enabled(&self) -> bool {
+            <Self as Metric>::is_enabled(self)
+        }
+
+        fn as_any(&self) -> Option<&dyn std::any::Any> {
+            <Self as Metric>::as_any(self)
+        }
+
+        fn value(&self) -> Option<metriken_core::Value> {
+            let value = <Self as Metric>::value(self)?;
+
+            Some(match value {
+                crate::Value::Counter(val) => metriken_core::Value::Counter(val),
+                crate::Value::Gauge(val) => metriken_core::Value::Gauge(val),
+                _ => metriken_core::Value::Other(self),
+            })
         }
     }
 }
@@ -221,38 +234,33 @@ pub enum Value<'a> {
 }
 
 /// A statically declared metric entry.
-pub struct MetricEntry {
-    metric: MetricWrapper,
-    name: Cow<'static, str>,
-    description: Option<Cow<'static, str>>,
-    metadata: Metadata,
-    formatter: fn(&Self, Format) -> String,
-}
+#[repr(transparent)]
+pub struct MetricEntry(metriken_core::MetricEntry);
 
 impl MetricEntry {
     /// Get a reference to the metric that this entry corresponds to.
-    pub fn metric(&self) -> &dyn Metric {
-        unsafe { &*self.metric.0 }
+    pub fn metric(&self) -> &CoreMetric {
+        CoreMetric::from_core(self.0.metric())
     }
 
     /// Get the name of this metric.
     pub fn name(&self) -> &str {
-        &self.name
+        self.0.name()
     }
 
     /// Get the description of this metric.
     pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
+        self.0.description()
     }
 
     /// Access the [`Metadata`] associated with this metrics entry.
     pub fn metadata(&self) -> &Metadata {
-        &self.metadata
+        self.0.metadata()
     }
 
     /// Format the metric into a string with the given format.
     pub fn formatted(&self, format: Format) -> String {
-        (self.formatter)(self, format)
+        self.0.formatted(format)
     }
 
     /// Checks whether `metric` is the metric for this entry.
@@ -261,13 +269,21 @@ impl MetricEntry {
     /// false positives if `metric` is a ZST since multiple ZSTs may share
     /// the same address.
     pub fn is(&self, metric: &dyn Metric) -> bool {
-        if self.metric().type_id() != metric.type_id() {
-            return false;
-        }
-
         let a = self.metric() as *const _ as *const ();
         let b = metric as *const _ as *const ();
         a == b
+    }
+
+    #[doc(hidden)]
+    pub fn from_core(core: &metriken_core::MetricEntry) -> &Self {
+        // SAFETY: We are a #[repr(transparent)] wrapper around a MetricEntry
+        //         so this is safe.
+        unsafe { std::mem::transmute(core) }
+    }
+
+    #[doc(hidden)]
+    pub fn as_core(&self) -> &metriken_core::MetricEntry {
+        &self.0
     }
 }
 
@@ -275,7 +291,7 @@ unsafe impl Send for MetricEntry {}
 unsafe impl Sync for MetricEntry {}
 
 impl std::ops::Deref for MetricEntry {
-    type Target = dyn Metric;
+    type Target = CoreMetric;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -289,5 +305,85 @@ impl std::fmt::Debug for MetricEntry {
             .field("name", &self.name())
             .field("metric", &"<dyn Metric>")
             .finish()
+    }
+}
+
+impl<T: metriken_core::Metric> Metric for T {
+    fn is_enabled(&self) -> bool {
+        <Self as metriken_core::Metric>::is_enabled(self)
+    }
+
+    fn as_any(&self) -> Option<&dyn Any> {
+        <Self as metriken_core::Metric>::as_any(self)
+    }
+
+    fn value(&self) -> Option<Value> {
+        use metriken_core::Value as CoreValue;
+
+        Some(match <Self as metriken_core::Metric>::value(self)? {
+            CoreValue::Counter(val) => Value::Counter(val),
+            CoreValue::Gauge(val) => Value::Gauge(val),
+            CoreValue::Other(val) => {
+                if let Some(histogram) = val.downcast_ref::<AtomicHistogram>() {
+                    Value::AtomicHistogram(histogram)
+                } else if let Some(histogram) = val.downcast_ref::<RwLockHistogram>() {
+                    Value::RwLockHistogram(histogram)
+                } else {
+                    Value::Other
+                }
+            }
+            _ => Value::Other,
+        })
+    }
+}
+
+#[repr(transparent)]
+pub struct CoreMetric(dyn metriken_core::Metric);
+
+impl CoreMetric {
+    fn from_core(core: &dyn metriken_core::Metric) -> &Self {
+        // SAFETY: We are #[repr(transparent)] so this is safe.
+        unsafe { std::mem::transmute(core) }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        <Self as metriken_core::Metric>::is_enabled(self)
+    }
+
+    pub fn as_any(&self) -> Option<&dyn Any> {
+        <Self as metriken_core::Metric>::as_any(self)
+    }
+
+    pub fn value(&self) -> Option<Value> {
+        use metriken_core::Value as CoreValue;
+
+        Some(match <Self as metriken_core::Metric>::value(self)? {
+            CoreValue::Counter(val) => Value::Counter(val),
+            CoreValue::Gauge(val) => Value::Gauge(val),
+            CoreValue::Other(val) => {
+                if let Some(histogram) = val.downcast_ref::<AtomicHistogram>() {
+                    Value::AtomicHistogram(histogram)
+                } else if let Some(histogram) = val.downcast_ref::<RwLockHistogram>() {
+                    Value::RwLockHistogram(histogram)
+                } else {
+                    Value::Other
+                }
+            }
+            _ => Value::Other,
+        })
+    }
+}
+
+impl metriken_core::Metric for CoreMetric {
+    fn is_enabled(&self) -> bool {
+        self.0.is_enabled()
+    }
+
+    fn as_any(&self) -> Option<&dyn Any> {
+        self.0.as_any()
+    }
+
+    fn value(&self) -> Option<metriken_core::Value> {
+        self.0.value()
     }
 }

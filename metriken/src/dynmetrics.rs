@@ -9,161 +9,51 @@
 //! exception of [`DynPinnedMetric`] and [`DynBoxedMetric`].
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
-use std::marker::PhantomPinned;
-use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::pin::Pin;
 
-use crate::null::NullMetric;
-use crate::{default_formatter, Format, Metadata, Metric, MetricEntry, MetricWrapper};
-
-// We use parking_lot here since it avoids lock poisioning
-use parking_lot::{const_rwlock, RwLock, RwLockReadGuard};
-
-pub(crate) struct DynMetricsRegistry {
-    metrics: BTreeMap<usize, MetricEntry>,
-}
-
-impl DynMetricsRegistry {
-    const fn new() -> Self {
-        Self {
-            metrics: BTreeMap::new(),
-        }
-    }
-
-    fn key_for(entry: &MetricEntry) -> usize {
-        entry.metric() as *const dyn Metric as *const () as usize
-    }
-
-    fn register(&mut self, entry: MetricEntry) {
-        self.metrics.insert(Self::key_for(&entry), entry);
-    }
-
-    fn unregister(&mut self, metric: *const dyn Metric) {
-        let key = metric as *const () as usize;
-        self.metrics.remove(&key);
-    }
-
-    pub(crate) fn metrics(&self) -> &BTreeMap<usize, MetricEntry> {
-        &self.metrics
-    }
-}
-
-static REGISTRY: RwLock<DynMetricsRegistry> = const_rwlock(DynMetricsRegistry::new());
-
-pub(crate) fn get_registry() -> RwLockReadGuard<'static, DynMetricsRegistry> {
-    REGISTRY.read()
-}
+use crate::WrapMetric;
+use crate::{Format, Metric, MetricEntry};
 
 /// Builder for creating a dynamic metric.
 ///
 /// This can be used to directly create a [`DynBoxedMetric`] or you can convert
 /// this builder into a [`MetricEntry`] for more advanced use cases.
-pub struct MetricBuilder {
-    name: Cow<'static, str>,
-    desc: Option<Cow<'static, str>>,
-    metadata: HashMap<String, String>,
-    formatter: fn(&MetricEntry, Format) -> String,
-}
+pub struct MetricBuilder(metriken_core::dynmetrics::MetricBuilder);
 
 impl MetricBuilder {
     /// Create a new builder, starting with the metric name.
     pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self {
-            name: name.into(),
-            desc: None,
-            metadata: HashMap::new(),
-            formatter: default_formatter,
-        }
+        Self(metriken_core::dynmetrics::MetricBuilder::new(name.into()))
     }
 
     /// Add a description of this metric.
-    pub fn description(mut self, desc: impl Into<Cow<'static, str>>) -> Self {
-        self.desc = Some(desc.into());
-        self
+    pub fn description(self, desc: impl Into<Cow<'static, str>>) -> Self {
+        Self(self.0.description(desc))
     }
 
     /// Add a new key-value metadata entry.
-    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.metadata.insert(key.into(), value.into());
-        self
+    pub fn metadata(self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        Self(self.0.metadata(key, value))
     }
 
-    pub fn formatter(mut self, formatter: fn(&MetricEntry, Format) -> String) -> Self {
-        self.formatter = formatter;
-        self
+    pub fn formatter(self, formatter: fn(&MetricEntry, Format) -> String) -> Self {
+        // SAFETY: MetricEntry is #[repr(transparent)] around metriken_core::MetricEntry
+        //         so implicitly transmuting their pointers as part of a function call is
+        //         safe.
+        let translated: fn(&metriken_core::MetricEntry, Format) -> String =
+            unsafe { std::mem::transmute(formatter) };
+        Self(self.0.formatter(translated))
     }
 
     /// Convert this builder directly into a [`MetricEntry`].
     pub fn into_entry(self) -> MetricEntry {
-        MetricEntry {
-            metric: MetricWrapper(&NullMetric),
-            name: self.name,
-            description: self.desc,
-            metadata: Metadata::new(self.metadata),
-            formatter: self.formatter,
-        }
+        MetricEntry(self.0.into_entry())
     }
 
     /// Build a [`DynBoxedMetric`] for use with this builder.
     pub fn build<T: Metric>(self, metric: T) -> DynBoxedMetric<T> {
         DynBoxedMetric::new(metric, self.into_entry())
-    }
-}
-
-/// Registers a new dynamic metric entry.
-///
-/// The [`MetricEntry`] instance will be kept until an [`unregister`] call is
-/// made with a metric pointer that matches the one within the [`MetricEntry`].
-/// When using this take care to note how it interacts with [`MetricEntry`]'s
-/// safety guarantees.
-///
-/// # Safety
-/// The pointer in `entry.metric` must remain valid to dereference until it is
-/// removed from the registry via [`unregister`].
-pub(crate) unsafe fn register(entry: MetricEntry) {
-    REGISTRY.write().register(entry);
-}
-
-/// Unregisters all dynamic entries added via [`register`] that point to the
-/// same address as `metric`.
-///
-/// This function may remove multiple entries if the same metric has been
-/// registered multiple times.
-pub(crate) fn unregister(metric: *const dyn Metric) {
-    REGISTRY.write().unregister(metric);
-}
-
-/// Ensures that the metric `M` has a unique address.
-///
-/// The correctness of the registry depends on each dynamic address having a
-/// unique address. However, we don't want to unconditionally add padding to
-/// all metrics. The way to work around this is to union M with a type of size
-/// 1. That way, if M is a zero-sized type then the storage will have a size
-/// of 1 but otherwise it has the size of M.
-union PinnedMetricStorage<M> {
-    metric: ManuallyDrop<M>,
-    _padding: u8,
-}
-
-impl<M> PinnedMetricStorage<M> {
-    fn new(metric: M) -> Self {
-        Self {
-            metric: ManuallyDrop::new(metric),
-        }
-    }
-
-    #[inline]
-    fn metric(&self) -> &M {
-        // Safety: nothing ever accesses _padding
-        unsafe { &self.metric }
-    }
-}
-
-impl<M> Drop for PinnedMetricStorage<M> {
-    fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.metric) }
     }
 }
 
@@ -188,12 +78,7 @@ impl<M> Drop for PinnedMetricStorage<M> {
 /// ```
 ///
 /// [`register`]: crate::dynmetrics::DynPinnedMetric::register
-pub struct DynPinnedMetric<M: Metric> {
-    storage: PinnedMetricStorage<M>,
-    // This type relies on Pin's guarantees for correctness. Allowing it to be unpinned would cause
-    // errors.
-    _marker: PhantomPinned,
-}
+pub struct DynPinnedMetric<M: Metric>(metriken_core::dynmetrics::DynPinnedMetric<WrapMetric<M>>);
 
 impl<M: Metric> DynPinnedMetric<M> {
     /// Create a new `DynPinnedMetric` with the provided internal metric.
@@ -202,42 +87,19 @@ impl<M: Metric> DynPinnedMetric<M> {
     ///
     /// [`register`]: self::DynPinnedMetric::register
     pub fn new(metric: M) -> Self {
-        Self {
-            storage: PinnedMetricStorage::new(metric),
-            _marker: PhantomPinned,
-        }
+        Self(metriken_core::dynmetrics::DynPinnedMetric::new(
+            WrapMetric::new(metric),
+        ))
     }
 
     /// Register this metric in the global list of dynamic metrics with `name`.
     ///
     /// Calling this multiple times will result in the same metric being
     /// registered multiple times under potentially different names.
-    pub fn register(self: Pin<&Self>, mut entry: MetricEntry) {
-        entry.metric = MetricWrapper(self.storage.metric());
-
-        // SAFETY:
-        // To prove that this is safe we need to list out a few guarantees/requirements:
-        //  - Pin ensures that the memory of this struct instance will not be reused
-        //    until the drop call completes.
-        //  - MetricEntry::new_unchecked requires that the metric reference outlive
-        //    created the MetricEntry instance.
-        //
-        // Finally, register will keep the MetricEntry instance in a global list until
-        // the corresponding unregister call is made.
-        //
-        // Taking all of these together, we can guarantee that self.metric will not be
-        // dropped until this instance of DynPinnedMetric is dropped itself. At that
-        // point, drop calls unregister which will drop the MetricEntry instance. This
-        // ensures that the references to self.metric in REGISTRY will always be valid
-        // and that this method is safe.
-        unsafe { register(entry) };
-    }
-}
-
-impl<M: Metric> Drop for DynPinnedMetric<M> {
-    fn drop(&mut self) {
-        // If this metric has not been registered then nothing will be removed.
-        unregister(self.storage.metric());
+    pub fn register(self: Pin<&Self>, entry: MetricEntry) {
+        // SAFETY: This is run-of-the-mill pin projection.
+        let this = unsafe { self.map_unchecked(|this| &this.0) };
+        this.register(entry.0);
     }
 }
 
@@ -246,7 +108,7 @@ impl<M: Metric> Deref for DynPinnedMetric<M> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.storage.metric()
+        &self.0
     }
 }
 
