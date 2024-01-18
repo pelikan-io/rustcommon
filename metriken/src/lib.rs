@@ -4,8 +4,6 @@
 
 //! Easily registered distributed metrics.
 //!
-//! More docs todo...
-//!
 //! # Creating a Metric
 //! Registering a metric is straightforward. All that's needed is to declare a
 //! static within the [`metric`] macro. By default, the metric will have the
@@ -32,6 +30,9 @@
 //! # assert_eq!(names[0], "COUNTER_A");
 //! # assert_eq!(names[1], "my.metric.name");
 //! ```
+//!
+//! If you want to create and remove metrics dynamically at runtime check out
+//! the [`dynmetrics`] module.
 //!
 //! # Accessing Metrics
 //! All metrics registered via the [`metric`] macro can be accessed by calling
@@ -116,3 +117,8 @@ pub type LazyGauge = Lazy<Gauge>;
 pub mod export {
     pub use metriken_core::declare_metric_v1;
 }
+
+#[cfg(doc)]
+#[doc = include_str!("../README.md")]
+#[doc(hidden)]
+pub mod readme {}
