@@ -124,6 +124,7 @@ pub(crate) fn metric(
 
     let static_name = &item.ident;
     let static_expr = &item.expr;
+    let static_type = &item.ty;
     let private: Path = parse_quote!(#krate::export);
 
     let mut metadata = MetadataMap::default();
@@ -159,23 +160,17 @@ pub(crate) fn metric(
         })
         .collect();
 
+    item.ty = Box::new(parse_quote!(#private::WrapMetric<#static_type>));
     item.expr = Box::new(parse_quote! {{
-        use #private::phf;
+        #private::declare_metric_v1! {
+            metric: #static_name,
+            name: #name,
+            description: #description,
+            metadata: { #( #attrs, )* },
+            formatter: |entry, format| (#formatter)(#krate::MetricEntry::from_core(entry), format),
+        };
 
-        static __METADATA: #private::phf::Map<&'static str, &'static str> =
-            #private::phf::phf_map! { #( #attrs, )* };
-
-        #[#private::linkme::distributed_slice(#private::METRICS)]
-        #[linkme(crate = #private::linkme)]
-        static __: #krate::MetricEntry = #private::entry(
-            &#static_name,
-            #name,
-            #description,
-            &__METADATA,
-            #formatter,
-        );
-
-        #static_expr
+        #private::WrapMetric::new(#static_expr)
     }});
 
     Ok(quote! { #item })

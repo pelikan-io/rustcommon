@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
 use std::iter::FusedIterator;
 
-use parking_lot::RwLockReadGuard;
+use crate::{dynmetrics, metric, MetricEntry};
 
-use crate::dynmetrics::DynMetricsRegistry;
-use crate::MetricEntry;
+used_in_docs!(metric, dynmetrics);
 
 /// The list of all metrics registered via the either [`metric`] attribute or by
 /// using the types within the [`dynmetrics`] module.
@@ -12,9 +10,7 @@ use crate::MetricEntry;
 /// Names within metrics are not guaranteed to be unique and no aggregation of
 /// metrics with the same name is done.
 pub fn metrics() -> Metrics {
-    Metrics {
-        dyn_metrics: crate::dynmetrics::get_registry(),
-    }
+    Metrics(metriken_core::metrics())
 }
 
 /// Provides access to all registered metrics both static and dynamic.
@@ -27,9 +23,7 @@ pub fn metrics() -> Metrics {
 /// on to `Metrics` instances for long periods of time.
 ///
 /// `Metrics` instances can be created via the [`metrics`] function.
-pub struct Metrics {
-    dyn_metrics: RwLockReadGuard<'static, DynMetricsRegistry>,
-}
+pub struct Metrics(metriken_core::Metrics);
 
 impl Metrics {
     /// A list containing all metrics that were registered via the [`metric`]
@@ -38,12 +32,14 @@ impl Metrics {
     /// Note that the entries may be in any order and that this order may
     /// change depending on compiler settings and the linker you are using.
     pub fn static_metrics(&self) -> &'static [MetricEntry] {
-        &crate::export::METRICS
+        // SAFETY: MetricEntry is #[repr(transparent)] around
+        //         metriken_core::MetricsEntry so this transmute is safe.
+        unsafe { std::mem::transmute(self.0.static_metrics()) }
     }
 
     /// A list containing all metrics that were dynamically registered.
     pub fn dynamic_metrics(&self) -> DynMetricsIter {
-        DynMetricsIter(self.dyn_metrics.metrics().values())
+        DynMetricsIter(self.0.dynamic_metrics())
     }
 
     pub fn iter(&self) -> MetricsIter {
@@ -56,7 +52,7 @@ impl<'a> IntoIterator for &'a Metrics {
     type IntoIter = MetricsIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MetricsIter::new(self.static_metrics(), self.dyn_metrics.metrics())
+        MetricsIter::new(self.static_metrics(), self.dynamic_metrics())
     }
 }
 
@@ -65,15 +61,12 @@ impl<'a> IntoIterator for &'a Metrics {
 /// See [`Metrics::static_metrics`].
 pub struct MetricsIter<'a> {
     sm: std::slice::Iter<'a, MetricEntry>,
-    dm: std::collections::btree_map::Values<'a, usize, MetricEntry>,
+    dm: DynMetricsIter<'a>,
 }
 
 impl<'a> MetricsIter<'a> {
-    fn new(sm: &'a [MetricEntry], dm: &'a BTreeMap<usize, MetricEntry>) -> Self {
-        Self {
-            sm: sm.iter(),
-            dm: dm.values(),
-        }
+    fn new(sm: &'a [MetricEntry], dm: DynMetricsIter<'a>) -> Self {
+        Self { sm: sm.iter(), dm }
     }
 }
 
@@ -141,13 +134,13 @@ impl<'a> FusedIterator for MetricsIter<'a> {}
 /// An iterator over all dynamically registered metrics.
 ///
 /// See [`Metrics::dynamic_metrics`].
-pub struct DynMetricsIter<'a>(std::collections::btree_map::Values<'a, usize, MetricEntry>);
+pub struct DynMetricsIter<'a>(metriken_core::DynMetricsIter<'a>);
 
 impl<'a> Iterator for DynMetricsIter<'a> {
     type Item = &'a MetricEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
+        self.0.next().map(MetricEntry::from_core)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -155,7 +148,7 @@ impl<'a> Iterator for DynMetricsIter<'a> {
     }
 
     fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        self.0.nth(n)
+        self.0.nth(n).map(MetricEntry::from_core)
     }
 
     fn count(self) -> usize
@@ -165,30 +158,32 @@ impl<'a> Iterator for DynMetricsIter<'a> {
         self.0.count()
     }
 
-    fn fold<B, F>(self, init: B, f: F) -> B
+    fn fold<B, F>(self, init: B, mut f: F) -> B
     where
         Self: Sized,
         F: FnMut(B, Self::Item) -> B,
     {
-        self.0.fold(init, f)
+        self.0
+            .fold(init, |accum, item| f(accum, MetricEntry::from_core(item)))
     }
 }
 
 impl<'a> DoubleEndedIterator for DynMetricsIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.next_back()
+        self.0.next_back().map(MetricEntry::from_core)
     }
 
     fn nth_back(&mut self, n: usize) -> Option<Self::Item> {
-        self.0.nth_back(n)
+        self.0.nth_back(n).map(MetricEntry::from_core)
     }
 
-    fn rfold<B, F>(self, init: B, f: F) -> B
+    fn rfold<B, F>(self, init: B, mut f: F) -> B
     where
         Self: Sized,
         F: FnMut(B, Self::Item) -> B,
     {
-        self.0.rfold(init, f)
+        self.0
+            .rfold(init, |accum, item| f(accum, MetricEntry::from_core(item)))
     }
 }
 
