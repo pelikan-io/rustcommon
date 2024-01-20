@@ -165,15 +165,15 @@ pub mod export {
 
     impl<T: Metric> metriken_core::Metric for WrapMetric<T> {
         fn is_enabled(&self) -> bool {
-            <Self as Metric>::is_enabled(self)
+            <T as Metric>::is_enabled(self)
         }
 
         fn as_any(&self) -> Option<&dyn std::any::Any> {
-            <Self as Metric>::as_any(self)
+            <T as Metric>::as_any(self)
         }
 
         fn value(&self) -> Option<metriken_core::Value> {
-            let value = <Self as Metric>::value(self)?;
+            let value = <T as Metric>::value(self)?;
 
             Some(match value {
                 crate::Value::Counter(val) => metriken_core::Value::Counter(val),
@@ -310,17 +310,17 @@ impl std::fmt::Debug for MetricEntry {
 
 impl<T: metriken_core::Metric> Metric for T {
     fn is_enabled(&self) -> bool {
-        <Self as metriken_core::Metric>::is_enabled(self)
+        <T as metriken_core::Metric>::is_enabled(self)
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
-        <Self as metriken_core::Metric>::as_any(self)
+        <T as metriken_core::Metric>::as_any(self)
     }
 
     fn value(&self) -> Option<Value> {
         use metriken_core::Value as CoreValue;
 
-        Some(match <Self as metriken_core::Metric>::value(self)? {
+        Some(match <T as metriken_core::Metric>::value(self)? {
             CoreValue::Counter(val) => Value::Counter(val),
             CoreValue::Gauge(val) => Value::Gauge(val),
             CoreValue::Other(val) => {
