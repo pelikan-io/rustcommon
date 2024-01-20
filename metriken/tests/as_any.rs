@@ -1,4 +1,4 @@
-use metriken::{metric, Counter, metrics};
+use metriken::{metric, metrics, Counter};
 
 #[metric]
 static THE_METRIC: Counter = Counter::new();
