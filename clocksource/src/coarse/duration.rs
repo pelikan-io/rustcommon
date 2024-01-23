@@ -4,8 +4,8 @@ use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, Sub, SubAss
 /// A duration measured in seconds.
 ///
 /// A duration represents a span of time. Unlike `std::time::Instant` the
-/// internal representation uses only nanoseconds in a u64 field to represent
-/// the span of time. This means that the max duration is ~584 years.
+/// internal representation uses only seconds in a u32 field to represent
+/// the span of time. This means that the max duration is ~136 years.
 #[repr(transparent)]
 #[derive(Copy, Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Duration {
