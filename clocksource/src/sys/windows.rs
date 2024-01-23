@@ -1,6 +1,5 @@
+use crate::NANOS_PER_SEC;
 use core::sync::atomic::{AtomicU64, Ordering};
-
-const NANOS_PER_SEC: u64 = 1_000_000_000;
 
 pub mod monotonic {
     use super::*;

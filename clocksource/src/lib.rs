@@ -15,3 +15,7 @@ pub mod datetime;
 pub mod precise;
 
 mod sys;
+
+const MILLIS_PER_SEC: u64 = 1_000;
+const MICROS_PER_SEC: u64 = 1_000_000;
+const NANOS_PER_SEC: u64 = 1_000_000_000;
