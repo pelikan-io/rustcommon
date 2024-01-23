@@ -1,10 +1,11 @@
+use crate::{MICROS_PER_SEC, MILLIS_PER_SEC, NANOS_PER_SEC};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, Sub, SubAssign};
 
 /// A duration measured in seconds.
 ///
 /// A duration represents a span of time. Unlike `std::time::Instant` the
-/// internal representation uses only nanoseconds in a u64 field to represent
-/// the span of time. This means that the max duration is ~584 years.
+/// internal representation uses only seconds in a u32 field to represent
+/// the span of time. This means that the max duration is ~136 years.
 #[repr(transparent)]
 #[derive(Copy, Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Duration {
@@ -31,6 +32,21 @@ impl Duration {
     /// Returns the number of seconds contained by this `Duration` as `f64`.
     pub const fn as_secs_f64(&self) -> f64 {
         self.secs as f64
+    }
+
+    /// Returns the number of microseconds contained by this `Duration`.
+    pub const fn as_micros(&self) -> u64 {
+        self.secs as u64 * MICROS_PER_SEC
+    }
+
+    /// Returns the number of milliseconds contained by this `Duration`.
+    pub const fn as_millis(&self) -> u64 {
+        self.secs as u64 * MILLIS_PER_SEC
+    }
+
+    /// Returns the number of nanoseconds contained by this `Duration`.
+    pub const fn as_nanos(&self) -> u64 {
+        self.secs as u64 * NANOS_PER_SEC
     }
 }
 
