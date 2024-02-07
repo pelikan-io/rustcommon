@@ -1,6 +1,6 @@
 [package]
 name = "metriken"
-version = "0.5.2"
+version = "0.5.1"
 edition = "2021"
 authors = [
 	"Brian Martin <brian@iop.systems>",
@@ -14,7 +14,7 @@ repository = "https://github.com/pelikan-io/rustcommon"
 [dependencies]
 metriken-core = { version = "0.1", path = "core" }
 metriken-derive = { version = "=0.5.1", path = "./derive" }
-histogram = { version = "0.9.1", path = "../histogram" }
+histogram = { version = "0.9.0", path = "../histogram" }
 
 once_cell = "1.14.0"
 parking_lot = "0.12.1"
