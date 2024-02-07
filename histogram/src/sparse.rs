@@ -1,6 +1,3 @@
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 use crate::{Bucket, Config, Error, Histogram, Snapshot};
 
 /// This histogram is a sparse, columnar representation of the regular
@@ -10,7 +7,7 @@ use crate::{Bucket, Config, Error, Histogram, Snapshot};
 /// of non-zero buckets. Assuming index[0] = n, (index[0], count[0])
 /// corresponds to the nth bucket.
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct SparseHistogram {
     /// parameters representing the resolution and the range of

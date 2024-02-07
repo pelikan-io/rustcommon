@@ -3,6 +3,7 @@ use std::time::SystemTime;
 
 /// A snapshot of a histogram across a time range.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Snapshot {
     // note: `Histogram` contains the start time
     pub(crate) end: SystemTime,

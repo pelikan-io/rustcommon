@@ -3,6 +3,7 @@ use std::time::SystemTime;
 
 /// A histogram that uses plain 64bit counters for each bucket.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Histogram {
     pub(crate) config: Config,
     pub(crate) start: SystemTime,
