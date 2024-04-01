@@ -11,6 +11,6 @@ repository = "https://github.com/pelikan-io/rustcommon"
 [dependencies]
 ahash = "0.8.0"
 clocksource = { version = "0.8.0", path = "../clocksource" }
-metriken = { version = "0.5.1", path = "../metriken" }
+metriken = "0.5.1"
 log = { version = "0.4.17", features = ["std"] }
 mpmc = "0.1.6"
