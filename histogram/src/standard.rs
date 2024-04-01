@@ -282,9 +282,8 @@ impl From<&SparseHistogram> for Histogram {
     fn from(other: &SparseHistogram) -> Self {
         let mut histogram = Histogram::with_config(&other.config);
 
-        for bucket in other.into_iter() {
-            // This can't fail because both histograms have the same config
-            let _ = histogram.add(bucket.start(), bucket.count());
+        for (index, count) in other.index.iter().zip(other.count.iter()) {
+            histogram.buckets[*index] = *count;
         }
 
         histogram
