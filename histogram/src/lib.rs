@@ -15,7 +15,6 @@ mod atomic;
 mod bucket;
 mod config;
 mod errors;
-mod snapshot;
 mod sparse;
 mod standard;
 
@@ -23,6 +22,5 @@ pub use atomic::AtomicHistogram;
 pub use bucket::Bucket;
 pub use config::Config;
 pub use errors::Error;
-pub use snapshot::Snapshot;
 pub use sparse::SparseHistogram;
 pub use standard::Histogram;

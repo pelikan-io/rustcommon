@@ -1,6 +1,5 @@
-use crate::{Config, Error, Histogram, Snapshot};
+use crate::{Config, Error, Histogram};
 use core::sync::atomic::{AtomicU64, Ordering};
-use std::time::SystemTime;
 
 /// A histogram that uses atomic 64bit counters for each bucket.
 ///
@@ -9,7 +8,6 @@ use std::time::SystemTime;
 /// the histogram at a point in time.
 pub struct AtomicHistogram {
     config: Config,
-    start: SystemTime,
     buckets: Box<[AtomicU64]>,
 }
 
@@ -29,7 +27,6 @@ impl AtomicHistogram {
 
         Self {
             config: *config,
-            start: SystemTime::now(),
             buckets: buckets.into(),
         }
     }
@@ -54,23 +51,18 @@ impl AtomicHistogram {
         Ok(())
     }
 
-    /// Produce a snapshot from this histogram.
-    pub fn snapshot(&self) -> Snapshot {
-        let end = SystemTime::now();
-
+    /// Read the bucket values into a new `Histogram`
+    pub fn load(&self) -> Histogram {
         let buckets: Vec<u64> = self
             .buckets
             .iter()
             .map(|bucket| bucket.load(Ordering::Relaxed))
             .collect();
 
-        let histogram = Histogram {
+        Histogram {
             config: self.config,
-            start: self.start,
             buckets: buckets.into(),
-        };
-
-        Snapshot { end, histogram }
+        }
     }
 }
 
@@ -80,11 +72,7 @@ mod test {
 
     #[test]
     fn size() {
-        #[cfg(not(target_os = "windows"))]
-        assert_eq!(std::mem::size_of::<AtomicHistogram>(), 64);
-
-        #[cfg(target_os = "windows")]
-        assert_eq!(std::mem::size_of::<AtomicHistogram>(), 56);
+        assert_eq!(std::mem::size_of::<AtomicHistogram>(), 48);
     }
 
     #[test]
@@ -94,56 +82,38 @@ mod test {
         for i in 0..=100 {
             let _ = histogram.increment(i);
             assert_eq!(
-                histogram.snapshot().percentile(0.0),
+                histogram.load().percentile(0.0),
                 Ok(Bucket {
                     count: 1,
                     range: 0..=0,
                 })
             );
             assert_eq!(
-                histogram.snapshot().percentile(100.0),
+                histogram.load().percentile(100.0),
                 Ok(Bucket {
                     count: 1,
                     range: i..=i,
                 })
             );
         }
-        assert_eq!(
-            histogram.snapshot().percentile(25.0).map(|b| b.end()),
-            Ok(25)
-        );
-        assert_eq!(
-            histogram.snapshot().percentile(50.0).map(|b| b.end()),
-            Ok(50)
-        );
-        assert_eq!(
-            histogram.snapshot().percentile(75.0).map(|b| b.end()),
-            Ok(75)
-        );
-        assert_eq!(
-            histogram.snapshot().percentile(90.0).map(|b| b.end()),
-            Ok(90)
-        );
-        assert_eq!(
-            histogram.snapshot().percentile(99.0).map(|b| b.end()),
-            Ok(99)
-        );
-        assert_eq!(
-            histogram.snapshot().percentile(99.9).map(|b| b.end()),
-            Ok(100)
-        );
+        assert_eq!(histogram.load().percentile(25.0).map(|b| b.end()), Ok(25));
+        assert_eq!(histogram.load().percentile(50.0).map(|b| b.end()), Ok(50));
+        assert_eq!(histogram.load().percentile(75.0).map(|b| b.end()), Ok(75));
+        assert_eq!(histogram.load().percentile(90.0).map(|b| b.end()), Ok(90));
+        assert_eq!(histogram.load().percentile(99.0).map(|b| b.end()), Ok(99));
+        assert_eq!(histogram.load().percentile(99.9).map(|b| b.end()), Ok(100));
 
         assert_eq!(
-            histogram.snapshot().percentile(-1.0),
+            histogram.load().percentile(-1.0),
             Err(Error::InvalidPercentile)
         );
         assert_eq!(
-            histogram.snapshot().percentile(101.0),
+            histogram.load().percentile(101.0),
             Err(Error::InvalidPercentile)
         );
 
         let percentiles: Vec<(f64, u64)> = histogram
-            .snapshot()
+            .load()
             .percentiles(&[50.0, 90.0, 99.0, 99.9])
             .unwrap()
             .iter()
@@ -157,7 +127,7 @@ mod test {
 
         let _ = histogram.increment(1024);
         assert_eq!(
-            histogram.snapshot().percentile(99.9),
+            histogram.load().percentile(99.9),
             Ok(Bucket {
                 count: 1,
                 range: 1024..=1031,
