@@ -1,30 +1,6 @@
-# histogram
+# heatmap
 
-A simple histogram implementation inspired by HDRHistogram and our base-2
-implementation from [ccommon]. It uses atomic counters to record increments for
-each value.
+This crate is deprecated. We instead recommend that the [histogram] crate is
+used directly.
 
-## Getting Started
-
-### Building
-
-rustcommon is built with the standard Rust toolchain which can be installed and
-managed via [rustup](https://rustup.rs) or by following the directions on the
-Rust [website](https://www.rust-lang.org/).
-
-#### View library documentation
-```bash
-cargo doc --open
-```
-
-## Support
-
-Create a [new issue](https://github.com/pelikan-io/rustcommon/issues/new) on GitHub.
-
-## Authors
-
-* Brian Martin <brayniac@gmail.com>
-
-A full list of [contributors] can be found on GitHub.
-
-[contributors]: https://github.com/pelikan-io/rustcommon/graphs/contributors?type=a
+[histogram]: https://crates.io/crates/histogram
