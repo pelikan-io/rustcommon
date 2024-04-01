@@ -29,13 +29,15 @@ impl Histogram {
 
     /// Creates a new histogram using a provided [`crate::Config`] and the
     /// provided collection of buckets.
-    pub fn from_buckets(config: &Config, buckets: Vec<u64>) -> Result<Self, Error> {
+    pub fn from_buckets(grouping_power: u8, max_value_power: u8, buckets: Vec<u64>) -> Result<Self, Error> {
+        let config = Config::new(grouping_power, max_value_power)?;
+
         if config.total_buckets() != buckets.len() {
             return Err(Error::IncompatibleParameters);
         }
 
         Ok(Self {
-            config: *config,
+            config,
             buckets: buckets.into(),
         })
     }
@@ -491,7 +493,7 @@ mod tests {
         }
 
         let buckets = histogram.as_slice();
-        let constructed = Histogram::from_buckets(&histogram.config(), buckets.to_vec()).unwrap();
+        let constructed = Histogram::from_buckets(8, 32, buckets.to_vec()).unwrap();
 
         assert!(constructed == histogram);
     }
