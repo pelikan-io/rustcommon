@@ -1,4 +1,4 @@
-use crate::{Bucket, Config, Error, Histogram, Snapshot};
+use crate::{Bucket, Config, Error, Histogram};
 
 /// This histogram is a sparse, columnar representation of the regular
 /// Histogram. It is significantly smaller than a regular Histogram
@@ -171,6 +171,46 @@ impl SparseHistogram {
     }
 }
 
+impl<'a> IntoIterator for &'a SparseHistogram {
+    type Item = Bucket;
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter {
+            index: 0,
+            histogram: self,
+        }
+    }
+}
+
+/// An iterator across the histogram buckets.
+pub struct Iter<'a> {
+    index: usize,
+    histogram: &'a SparseHistogram,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = Bucket;
+
+    fn next(&mut self) -> Option<<Self as std::iter::Iterator>::Item> {
+        if self.index >= self.histogram.index.len() {
+            return None;
+        }
+
+        let bucket = Bucket {
+            count: self.histogram.count[self.index],
+            range: self
+                .histogram
+                .config
+                .index_to_range(self.histogram.index[self.index]),
+        };
+
+        self.index += 1;
+
+        Some(bucket)
+    }
+}
+
 impl From<&Histogram> for SparseHistogram {
     fn from(histogram: &Histogram) -> Self {
         let mut index = Vec::new();
@@ -188,12 +228,6 @@ impl From<&Histogram> for SparseHistogram {
             index,
             count,
         }
-    }
-}
-
-impl From<&Snapshot> for SparseHistogram {
-    fn from(snapshot: &Snapshot) -> Self {
-        SparseHistogram::from(&snapshot.histogram)
     }
 }
 
@@ -282,7 +316,7 @@ mod tests {
         }
 
         // Convert to sparse and store buckets in a hash for random lookup
-        let hsparse = SparseHistogram::from(&hstandard.snapshot());
+        let hsparse = SparseHistogram::from(&hstandard);
         compare_histograms(&hstandard, &hsparse);
     }
 

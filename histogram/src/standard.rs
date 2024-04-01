@@ -1,12 +1,10 @@
-use crate::{Bucket, Config, Error, Snapshot};
-use std::time::SystemTime;
+use crate::{Bucket, Config, Error, SparseHistogram};
 
 /// A histogram that uses plain 64bit counters for each bucket.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Histogram {
     pub(crate) config: Config,
-    pub(crate) start: SystemTime,
     pub(crate) buckets: Box<[u64]>,
 }
 
@@ -25,9 +23,27 @@ impl Histogram {
 
         Self {
             config: *config,
-            start: SystemTime::now(),
             buckets,
         }
+    }
+
+    /// Creates a new histogram using a provided [`crate::Config`] and the
+    /// provided collection of buckets.
+    pub fn from_buckets(
+        grouping_power: u8,
+        max_value_power: u8,
+        buckets: Vec<u64>,
+    ) -> Result<Self, Error> {
+        let config = Config::new(grouping_power, max_value_power)?;
+
+        if config.total_buckets() != buckets.len() {
+            return Err(Error::IncompatibleParameters);
+        }
+
+        Ok(Self {
+            config,
+            buckets: buckets.into(),
+        })
     }
 
     /// Increment the counter for the bucket corresponding to the provided value
@@ -121,16 +137,6 @@ impl Histogram {
             .map(|v| v.first().unwrap().1.clone())
     }
 
-    /// Produce a snapshot from this histogram.
-    pub fn snapshot(&self) -> Snapshot {
-        let end = SystemTime::now();
-
-        Snapshot {
-            end,
-            histogram: self.clone(),
-        }
-    }
-
     /// Returns a new histogram with a reduced grouping power. The reduced
     /// grouping power should lie in the range (0..existing grouping power).
     ///
@@ -203,7 +209,7 @@ impl Histogram {
     ///
     /// An error is returned if the two histograms have incompatible parameters
     /// or if there is an overflow.
-    pub(crate) fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub fn checked_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
@@ -221,7 +227,7 @@ impl Histogram {
     /// as a new histogram.
     ///
     /// An error is returned if the two histograms have incompatible parameters.
-    pub(crate) fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
+    pub fn wrapping_sub(&self, other: &Histogram) -> Result<Histogram, Error> {
         if self.config != other.config {
             return Err(Error::IncompatibleParameters);
         }
@@ -278,6 +284,18 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+impl From<&SparseHistogram> for Histogram {
+    fn from(other: &SparseHistogram) -> Self {
+        let mut histogram = Histogram::with_config(&other.config);
+
+        for (index, count) in other.index.iter().zip(other.count.iter()) {
+            histogram.buckets[*index] = *count;
+        }
+
+        histogram
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,11 +303,7 @@ mod tests {
 
     #[test]
     fn size() {
-        #[cfg(not(target_os = "windows"))]
-        assert_eq!(std::mem::size_of::<Histogram>(), 64);
-
-        #[cfg(target_os = "windows")]
-        assert_eq!(std::mem::size_of::<Histogram>(), 56);
+        assert_eq!(std::mem::size_of::<Histogram>(), 48);
     }
 
     #[test]
@@ -472,5 +486,19 @@ mod tests {
 
         let r = h.wrapping_sub(&h_overflow).unwrap();
         assert_eq!(r.as_slice(), &[2, 2, 2, 2, 2, 2]);
+    }
+
+    #[test]
+    // Test creating the histogram from buckets
+    fn from_buckets() {
+        let mut histogram = Histogram::new(8, 32).unwrap();
+        for i in 0..=100 {
+            let _ = histogram.increment(i);
+        }
+
+        let buckets = histogram.as_slice();
+        let constructed = Histogram::from_buckets(8, 32, buckets.to_vec()).unwrap();
+
+        assert!(constructed == histogram);
     }
 }

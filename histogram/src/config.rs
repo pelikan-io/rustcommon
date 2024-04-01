@@ -55,7 +55,7 @@ use serde::{Deserialize, Serialize};
 /// # Constraints:
 /// * `max_value_power` must be in the range `0..=64`
 /// * `max_value_power` must be greater than `grouping_power
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct Config {
