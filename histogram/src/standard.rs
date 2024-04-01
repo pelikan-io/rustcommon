@@ -29,7 +29,11 @@ impl Histogram {
 
     /// Creates a new histogram using a provided [`crate::Config`] and the
     /// provided collection of buckets.
-    pub fn from_buckets(grouping_power: u8, max_value_power: u8, buckets: Vec<u64>) -> Result<Self, Error> {
+    pub fn from_buckets(
+        grouping_power: u8,
+        max_value_power: u8,
+        buckets: Vec<u64>,
+    ) -> Result<Self, Error> {
         let config = Config::new(grouping_power, max_value_power)?;
 
         if config.total_buckets() != buckets.len() {
