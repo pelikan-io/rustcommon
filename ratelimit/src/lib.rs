@@ -79,6 +79,7 @@ struct Parameters {
 
 pub struct Ratelimiter {
     available: AtomicU64,
+    dropped: AtomicU64,
     parameters: RwLock<Parameters>,
     refill_at: AtomicInstant,
 }
@@ -177,10 +178,13 @@ impl Ratelimiter {
         }
     }
 
+    /// Returns the number of tokens currently available.
     pub fn available(&self) -> u64 {
         self.available.load(Ordering::Relaxed)
     }
 
+    /// Sets the number of tokens available to some amount. Returns an error if
+    /// the amount exceeds the bucket capacity.
     pub fn set_available(&self, amount: u64) -> Result<(), Error> {
         let parameters = self.parameters.read();
         if amount > parameters.capacity {
@@ -189,6 +193,12 @@ impl Ratelimiter {
             self.available.store(amount, Ordering::Release);
             Ok(())
         }
+    }
+
+    /// Returns the number of tokens that have been dropped due to bucket
+    /// overflowing.
+    pub fn dropped(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
     }
 
     /// Internal function to refill the token bucket. Called as part of
@@ -236,8 +246,12 @@ impl Ratelimiter {
         let available = self.available.load(Ordering::Acquire);
 
         if available + amount >= parameters.capacity {
-            self.available
-                .fetch_add(parameters.capacity - available, Ordering::Release);
+            // we will fill the bucket up to the capacity
+            let to_add = parameters.capacity - available;
+            self.available.fetch_add(to_add, Ordering::Release);
+
+            // and increment the number of tokens dropped
+            self.dropped.fetch_add(amount - to_add, Ordering::Relaxed);
         } else {
             self.available.fetch_add(amount, Ordering::Release);
         }
@@ -395,6 +409,7 @@ impl Builder {
 
         Ok(Ratelimiter {
             available,
+            dropped: AtomicU64::new(0),
             parameters: parameters.into(),
             refill_at,
         })
@@ -459,6 +474,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(10));
         assert!(rl.try_wait().is_ok());
         assert!(rl.try_wait().is_err());
+        assert!(rl.dropped() >= 8);
     }
 
     // quick test that capacity acts as expected
