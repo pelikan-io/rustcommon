@@ -32,23 +32,34 @@ impl AtomicHistogram {
     }
 
     /// Increment the bucket that contains the value by one.
-    ///
-    /// This is a convenience method that uses `Instant::now()` as the time
-    /// associated with the observation. If you already have a timestamp, you
-    /// may wish to use `increment_at` instead.
     pub fn increment(&self, value: u64) -> Result<(), Error> {
         self.add(value, 1)
     }
 
     /// Increment the bucket that contains the value by some count.
-    ///
-    /// This is a convenience method that uses `Instant::now()` as the time
-    /// associated with the observation. If you already have a timestamp, you
-    /// may wish to use the `add_at` instead.
     pub fn add(&self, value: u64, count: u64) -> Result<(), Error> {
         let index = self.config.value_to_index(value)?;
         self.buckets[index].fetch_add(count, Ordering::Relaxed);
         Ok(())
+    }
+
+    // NOTE: once stabilized, `target_has_atomic_load_store` is more correct. https://github.com/rust-lang/rust/issues/94039
+    #[cfg(target_has_atomic = "64")]
+    /// Drains the bucket values into a new Histogram
+    ///
+    /// Unlike [`load`](AtomicHistogram::load), this method will reset all bucket values to zero. This uses [`AtomicU64::swap`] and is not available
+    /// on platforms where [`AtomicU64::swap`] is not available.
+    pub fn drain(&self) -> Histogram {
+        let buckets: Vec<u64> = self
+            .buckets
+            .iter()
+            .map(|bucket| bucket.swap(0, Ordering::Relaxed))
+            .collect();
+
+        Histogram {
+            config: self.config,
+            buckets: buckets.into(),
+        }
     }
 
     /// Read the bucket values into a new `Histogram`
@@ -73,6 +84,34 @@ mod test {
     #[test]
     fn size() {
         assert_eq!(std::mem::size_of::<AtomicHistogram>(), 48);
+    }
+
+    #[cfg(target_has_atomic = "64")]
+    #[test]
+    /// Tests that drain properly resets buckets to 0
+    fn drain() {
+        let histogram = AtomicHistogram::new(7, 64).unwrap();
+        for i in 0..=100 {
+            let _ = histogram.increment(i);
+        }
+        let percentiles = histogram.drain();
+        assert_eq!(
+            percentiles.percentile(50.0),
+            Ok(Bucket {
+                count: 1,
+                range: 50..=50,
+            })
+        );
+        histogram.increment(1000).unwrap();
+        // after another load the map is empty
+        let percentiles = histogram.drain();
+        assert_eq!(
+            percentiles.percentile(50.0),
+            Ok(Bucket {
+                count: 1,
+                range: 1000..=1003,
+            })
+        );
     }
 
     #[test]
