@@ -18,4 +18,8 @@ pub enum Error {
     IncompatibleTimeRange,
     #[error("an overflow occurred")]
     Overflow,
+    #[error("an underflow occurred")]
+    Underflow,
+    #[error("the histogram is not a subset")]
+    InvalidSubset,
 }
