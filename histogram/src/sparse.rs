@@ -91,6 +91,57 @@ impl SparseHistogram {
         Ok(histogram)
     }
 
+    /// Subtracts the other histogram to this histogram and returns the result as a
+    /// new histogram. The other histogram is expected to be a subset of the current
+    /// histogram, i.e., for every bucket in the other histogram should have a
+    /// count less than or equal to the corresponding bucket in this histogram.
+    ///
+    /// An error is returned if the two histograms have incompatible parameters
+    /// or if the other histogram is not a subset of this histogram.
+    #[allow(clippy::comparison_chain)]
+    pub fn checked_sub(&self, h: &SparseHistogram) -> Result<SparseHistogram, Error> {
+        if self.config != h.config {
+            return Err(Error::IncompatibleParameters);
+        }
+
+        let mut histogram = SparseHistogram::with_config(&self.config);
+
+        // Sort and merge buckets from both histograms
+        let (mut i, mut j) = (0, 0);
+        while i < self.index.len() && j < h.index.len() {
+            let (k1, v1) = (self.index[i], self.count[i]);
+            let (k2, v2) = (h.index[j], h.count[j]);
+
+            if k1 == k2 {
+                let v = v1.checked_sub(v2).ok_or(Error::Underflow)?;
+                if v != 0 {
+                    histogram.add_bucket(k1, v);
+                }
+                (i, j) = (i + 1, j + 1);
+            } else if k1 < k2 {
+                histogram.add_bucket(k1, v1);
+                i += 1;
+            } else {
+                // Other histogram has a bucket not present in this histogram,
+                // i.e., it is not a subset of this histogram
+                return Err(Error::InvalidSubset);
+            }
+        }
+
+        // Check that the subset histogram has been consumed
+        if j < h.index.len() {
+            return Err(Error::InvalidSubset);
+        }
+
+        // Fill remaining bucets, if any, from the superset histogram
+        if i < self.index.len() {
+            histogram.index.extend(&self.index[i..self.index.len()]);
+            histogram.count.extend(&self.count[i..self.count.len()]);
+        }
+
+        Ok(histogram)
+    }
+
     /// Return a single percentile from this histogram.
     ///
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
@@ -272,6 +323,64 @@ mod tests {
         let h = h1.wrapping_add(&h3).unwrap();
         assert_eq!(h.index, vec![1, 2, 3, 5, 6, 11, 13]);
         assert_eq!(h.count, vec![6, 5, 19, 7, 3, 15, 6]);
+    }
+
+    #[test]
+    fn checked_sub() {
+        let config = Config::new(7, 32).unwrap();
+
+        let h1 = SparseHistogram {
+            config,
+            index: vec![1, 3, 5],
+            count: vec![6, 12, 7],
+        };
+
+        let hparams = SparseHistogram::new(6, 16).unwrap();
+        let h = h1.checked_sub(&hparams);
+        assert_eq!(h, Err(Error::IncompatibleParameters));
+
+        let hempty = SparseHistogram::with_config(&config);
+        let h = h1.checked_sub(&hempty).unwrap();
+        assert_eq!(h.index, vec![1, 3, 5]);
+        assert_eq!(h.count, vec![6, 12, 7]);
+
+        let hclone = h1.clone();
+        let h = h1.checked_sub(&hclone).unwrap();
+        assert!(h.index.is_empty());
+        assert!(h.count.is_empty());
+
+        let hlarger = SparseHistogram {
+            config,
+            index: vec![1, 3, 5],
+            count: vec![4, 13, 7],
+        };
+        let h = h1.checked_sub(&hlarger);
+        assert_eq!(h, Err(Error::Underflow));
+
+        let hmore = SparseHistogram {
+            config,
+            index: vec![1, 5, 7],
+            count: vec![4, 7, 1],
+        };
+        let h = h1.checked_sub(&hmore);
+        assert_eq!(h, Err(Error::InvalidSubset));
+
+        let hdiff = SparseHistogram {
+            config,
+            index: vec![1, 2, 5],
+            count: vec![4, 1, 7],
+        };
+        let h = h1.checked_sub(&hdiff);
+        assert_eq!(h, Err(Error::InvalidSubset));
+
+        let hsubset = SparseHistogram {
+            config,
+            index: vec![1, 3],
+            count: vec![5, 9],
+        };
+        let h = h1.checked_sub(&hsubset).unwrap();
+        assert_eq!(h.index, vec![1, 3, 5]);
+        assert_eq!(h.count, vec![1, 3, 7]);
     }
 
     #[test]
