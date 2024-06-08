@@ -97,20 +97,20 @@ mod test {
         let percentiles = histogram.drain();
         assert_eq!(
             percentiles.percentile(50.0),
-            Ok(Bucket {
+            Ok(Some(Bucket {
                 count: 1,
                 range: 50..=50,
-            })
+            }))
         );
         histogram.increment(1000).unwrap();
         // after another load the map is empty
         let percentiles = histogram.drain();
         assert_eq!(
             percentiles.percentile(50.0),
-            Ok(Bucket {
+            Ok(Some(Bucket {
                 count: 1,
                 range: 1000..=1003,
-            })
+            }))
         );
     }
 
@@ -118,29 +118,48 @@ mod test {
     // Tests percentiles
     fn percentiles() {
         let histogram = AtomicHistogram::new(7, 64).unwrap();
+        let percentiles = [25.0, 50.0, 75.0, 90.0, 99.0];
+
+        // check empty
+        assert_eq!(histogram.load().percentiles(&percentiles), Ok(None));
+
+        for percentile in percentiles {
+            assert_eq!(histogram.load().percentile(percentile), Ok(None));
+        }
+
+        // populate and check percentiles
         for i in 0..=100 {
             let _ = histogram.increment(i);
             assert_eq!(
                 histogram.load().percentile(0.0),
-                Ok(Bucket {
+                Ok(Some(Bucket {
                     count: 1,
                     range: 0..=0,
-                })
+                }))
             );
             assert_eq!(
                 histogram.load().percentile(100.0),
-                Ok(Bucket {
+                Ok(Some(Bucket {
                     count: 1,
                     range: i..=i,
-                })
+                }))
             );
         }
-        assert_eq!(histogram.load().percentile(25.0).map(|b| b.end()), Ok(25));
-        assert_eq!(histogram.load().percentile(50.0).map(|b| b.end()), Ok(50));
-        assert_eq!(histogram.load().percentile(75.0).map(|b| b.end()), Ok(75));
-        assert_eq!(histogram.load().percentile(90.0).map(|b| b.end()), Ok(90));
-        assert_eq!(histogram.load().percentile(99.0).map(|b| b.end()), Ok(99));
-        assert_eq!(histogram.load().percentile(99.9).map(|b| b.end()), Ok(100));
+
+        for percentile in percentiles {
+            assert_eq!(
+                histogram
+                    .load()
+                    .percentile(percentile)
+                    .map(|b| b.unwrap().end()),
+                Ok(percentile as u64)
+            );
+        }
+
+        assert_eq!(
+            histogram.load().percentile(99.9).map(|b| b.unwrap().end()),
+            Ok(100)
+        );
 
         assert_eq!(
             histogram.load().percentile(-1.0),
@@ -155,6 +174,7 @@ mod test {
             .load()
             .percentiles(&[50.0, 90.0, 99.0, 99.9])
             .unwrap()
+            .unwrap()
             .iter()
             .map(|(p, b)| (*p, b.end()))
             .collect();
@@ -167,10 +187,10 @@ mod test {
         let _ = histogram.increment(1024);
         assert_eq!(
             histogram.load().percentile(99.9),
-            Ok(Bucket {
+            Ok(Some(Bucket {
                 count: 1,
                 range: 1024..=1031,
-            })
+            }))
         );
     }
 }

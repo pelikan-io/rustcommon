@@ -142,35 +142,67 @@ impl SparseHistogram {
         Ok(histogram)
     }
 
+    /// Return a collection of percentiles from this histogram.
+    ///
+    /// Each percentile should be in the inclusive range `0.0..=100.0`. For
+    /// example, the 50th percentile (median) can be found using `50.0`.
+    ///
+    /// The results will be sorted by the percentile.
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Option<Vec<(f64, Bucket)>>, Error> {
+        // validate all the percentiles
+        if percentiles.is_empty() {
+            return Err(Error::InvalidPercentile);
+        }
+
+        for percentile in percentiles {
+            if !(0.0..=100.0).contains(percentile) {
+                return Err(Error::InvalidPercentile);
+            }
+        }
+
+        let total: u128 = self.count.iter().map(|v| *v as u128).sum();
+
+        // empty histogram, no percentiles available
+        if total == 0 {
+            return Ok(None);
+        }
+
+        // sort the requested percentiles so we can find them in a single pass
+        let mut percentiles = percentiles.to_vec();
+        percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let searches: Vec<usize> = percentiles
+            .iter()
+            .map(|p| ((total as f64) * *p / 100.0).ceil() as usize)
+            .collect();
+        let mut search_idx = 0;
+        let mut result: Vec<(f64, Bucket)> = Vec::with_capacity(percentiles.len());
+
+        let mut seen: usize = 0;
+        for (idx, count) in self.index.iter().zip(self.count.iter()) {
+            seen += *count as usize;
+            while search_idx < searches.len() && seen >= searches[search_idx] {
+                result.push((
+                    percentiles[search_idx],
+                    Bucket {
+                        count: *count,
+                        range: self.config.index_to_range(*idx),
+                    },
+                ));
+                search_idx += 1;
+            }
+        }
+
+        Ok(Some(result))
+    }
+
     /// Return a single percentile from this histogram.
     ///
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
-    pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
-        let total: u128 = self.count.iter().map(|v| *v as u128).sum();
-
-        if !(0.0..=100.0).contains(&percentile) {
-            return Err(Error::InvalidPercentile);
-        }
-
-        let search = ((total as f64) * percentile / 100.0).ceil() as usize;
-        let mut seen: usize = 0;
-        for (idx, count) in self.index.iter().zip(self.count.iter()) {
-            seen += *count as usize;
-            if seen >= search {
-                return Ok(Bucket {
-                    count: *count,
-                    range: self.config.index_to_range(*idx),
-                });
-            }
-        }
-
-        // should never be reached; return highest bucket if not found
-        let last_idx = self.index.len() - 1;
-        Ok(Bucket {
-            count: self.count[last_idx],
-            range: self.config.index_to_range(self.index[last_idx]),
-        })
+    pub fn percentile(&self, percentile: f64) -> Result<Option<Bucket>, Error> {
+        self.percentiles(&[percentile])
+            .map(|v| v.map(|x| x.first().unwrap().1.clone()))
     }
 
     /// Returns a new histogram with a reduced grouping power. The reduced
@@ -384,20 +416,30 @@ mod tests {
     }
 
     #[test]
-    fn percentile() {
+    fn percentiles() {
         let mut hstandard = Histogram::new(4, 10).unwrap();
+        let hempty = SparseHistogram::from(&hstandard);
+
         for v in 1..1024 {
             let _ = hstandard.increment(v);
         }
 
         let hsparse = SparseHistogram::from(&hstandard);
-
-        for percentile in [1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0, 99.9] {
+        let percentiles = [1.0, 10.0, 25.0, 50.0, 75.0, 90.0, 99.0, 99.9];
+        for percentile in percentiles {
+            let bempty = hempty.percentile(percentile).unwrap();
             let bstandard = hstandard.percentile(percentile).unwrap();
             let bsparse = hsparse.percentile(percentile).unwrap();
 
+            assert_eq!(bempty, None);
             assert_eq!(bsparse, bstandard);
         }
+
+        assert_eq!(hempty.percentiles(&percentiles), Ok(None));
+        assert_eq!(
+            hstandard.percentiles(&percentiles).unwrap(),
+            hsparse.percentiles(&percentiles).unwrap()
+        );
     }
 
     fn compare_histograms(hstandard: &Histogram, hsparse: &SparseHistogram) {

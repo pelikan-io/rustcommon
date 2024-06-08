@@ -76,7 +76,7 @@ impl Histogram {
     /// example, the 50th percentile (median) can be found using `50.0`.
     ///
     /// The results will be sorted by the percentile.
-    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Vec<(f64, Bucket)>, Error> {
+    pub fn percentiles(&self, percentiles: &[f64]) -> Result<Option<Vec<(f64, Bucket)>>, Error> {
         // get the total count
         let total_count: u128 = self.buckets.iter().map(|v| *v as u128).sum();
 
@@ -89,6 +89,11 @@ impl Histogram {
             if !(0.0..=100.0).contains(percentile) {
                 return Err(Error::InvalidPercentile);
             }
+        }
+
+        // empty histogram, no percentiles available
+        if total_count == 0 {
+            return Ok(None);
         }
 
         let mut bucket_idx = 0;
@@ -125,16 +130,16 @@ impl Histogram {
             })
             .collect();
 
-        Ok(result)
+        Ok(Some(result))
     }
 
     /// Return a single percentile from this histogram.
     ///
     /// The percentile should be in the inclusive range `0.0..=100.0`. For
     /// example, the 50th percentile (median) can be found using `50.0`.
-    pub fn percentile(&self, percentile: f64) -> Result<Bucket, Error> {
+    pub fn percentile(&self, percentile: f64) -> Result<Option<Bucket>, Error> {
         self.percentiles(&[percentile])
-            .map(|v| v.first().unwrap().1.clone())
+            .map(|v| v.map(|x| x.first().unwrap().1.clone()))
     }
 
     /// Returns a new histogram with a reduced grouping power. The reduced
@@ -310,35 +315,46 @@ mod tests {
     // Tests percentiles
     fn percentiles() {
         let mut histogram = Histogram::new(7, 64).unwrap();
+
+        assert_eq!(histogram.percentile(50.0).unwrap(), None);
+        assert_eq!(
+            histogram.percentiles(&[50.0, 90.0, 99.0, 99.9]).unwrap(),
+            None
+        );
+
         for i in 0..=100 {
             let _ = histogram.increment(i);
             assert_eq!(
                 histogram.percentile(0.0),
-                Ok(Bucket {
+                Ok(Some(Bucket {
                     count: 1,
                     range: 0..=0,
-                })
+                }))
             );
             assert_eq!(
                 histogram.percentile(100.0),
-                Ok(Bucket {
+                Ok(Some(Bucket {
                     count: 1,
                     range: i..=i,
-                })
+                }))
             );
         }
-        assert_eq!(histogram.percentile(25.0).map(|b| b.end()), Ok(25));
-        assert_eq!(histogram.percentile(50.0).map(|b| b.end()), Ok(50));
-        assert_eq!(histogram.percentile(75.0).map(|b| b.end()), Ok(75));
-        assert_eq!(histogram.percentile(90.0).map(|b| b.end()), Ok(90));
-        assert_eq!(histogram.percentile(99.0).map(|b| b.end()), Ok(99));
-        assert_eq!(histogram.percentile(99.9).map(|b| b.end()), Ok(100));
+        assert_eq!(histogram.percentile(25.0).map(|b| b.unwrap().end()), Ok(25));
+        assert_eq!(histogram.percentile(50.0).map(|b| b.unwrap().end()), Ok(50));
+        assert_eq!(histogram.percentile(75.0).map(|b| b.unwrap().end()), Ok(75));
+        assert_eq!(histogram.percentile(90.0).map(|b| b.unwrap().end()), Ok(90));
+        assert_eq!(histogram.percentile(99.0).map(|b| b.unwrap().end()), Ok(99));
+        assert_eq!(
+            histogram.percentile(99.9).map(|b| b.unwrap().end()),
+            Ok(100)
+        );
 
         assert_eq!(histogram.percentile(-1.0), Err(Error::InvalidPercentile));
         assert_eq!(histogram.percentile(101.0), Err(Error::InvalidPercentile));
 
         let percentiles: Vec<(f64, u64)> = histogram
             .percentiles(&[50.0, 90.0, 99.0, 99.9])
+            .unwrap()
             .unwrap()
             .iter()
             .map(|(p, b)| (*p, b.end()))
@@ -352,10 +368,10 @@ mod tests {
         let _ = histogram.increment(1024);
         assert_eq!(
             histogram.percentile(99.9),
-            Ok(Bucket {
+            Ok(Some(Bucket {
                 count: 1,
                 range: 1024..=1031,
-            })
+            }))
         );
     }
 
@@ -395,7 +411,7 @@ mod tests {
                 let v = vals[((*p / 100.0 * (vals.len() as f64)) as usize) - 1];
 
                 // Value and relative error from full histogram
-                let vhist = histogram.percentile(*p).unwrap().end();
+                let vhist = histogram.percentile(*p).unwrap().unwrap().end();
                 let e = (v.abs_diff(vhist) as f64) * 100.0 / (v as f64);
                 assert!(e < error);
             }
