@@ -35,6 +35,7 @@ impl Log for SamplingLogger {
         if (count % self.sample) == 0 {
             self.logger.log(record)
         } else {
+            #[cfg(feature = "metrics")]
             LOG_SKIP.increment();
         }
     }
