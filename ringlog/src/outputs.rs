@@ -115,7 +115,7 @@ impl File {
             std::fs::rename(&self.active, &self.backup)?;
 
             // create a new file for the live log
-            
+
             #[cfg(feature = "metrics")]
             LOG_OPEN.increment();
 
