@@ -47,7 +47,9 @@ impl Log for Logger {
         )
         .is_ok()
         {
-            let bytes = buffer.len();
+            metrics! {
+                let bytes = buffer.len();
+            }
 
             // Note this may drop a log message, but avoids blocking. The
             // preference here is to preserve log messages which lead up to the
@@ -55,12 +57,17 @@ impl Log for Logger {
             // error begins to happen which causes very many log messages, it is
             // more beneficial to have the history leading up to the issue than
             // to preserve more recent error messages.
+            #[allow(clippy::needless_else)]
             if self.log_filled.push(buffer).is_ok() {
-                LOG_WRITE.increment();
-                LOG_WRITE_BYTE.add(bytes as _);
+                metrics! {
+                    LOG_WRITE.increment();
+                    LOG_WRITE_BYTE.add(bytes as _);
+                }
             } else {
-                LOG_DROP.increment();
-                LOG_DROP_BYTE.add(bytes as _);
+                metrics! {
+                    LOG_DROP.increment();
+                    LOG_DROP_BYTE.add(bytes as _);
+                }
             }
         }
     }
@@ -79,10 +86,16 @@ pub(crate) struct LogDrain {
 
 impl Drain for LogDrain {
     fn flush(&mut self) -> Result<(), Error> {
-        LOG_FLUSH.increment();
+        metrics! {
+            LOG_FLUSH.increment();
+        }
+
         while let Some(mut log_buffer) = self.log_filled.pop() {
             if let Err(e) = self.output.write_all(&log_buffer) {
-                LOG_WRITE_EX.increment();
+                metrics! {
+                    LOG_WRITE_EX.increment();
+                }
+
                 warn!("failed write to log buffer: {}", e);
                 return Err(e);
             }
@@ -100,7 +113,10 @@ impl Drain for LogDrain {
         }
 
         if let Err(e) = self.output.flush() {
-            LOG_FLUSH_EX.increment();
+            metrics! {
+                LOG_FLUSH_EX.increment();
+            }
+
             warn!("failed to flush log: {}", e);
             Err(e)
         } else {
@@ -166,8 +182,11 @@ impl LogBuilder {
 
     /// Consumes the builder and returns a configured `Logger` and `LogHandle`.
     pub(crate) fn build_raw(self) -> Result<(Logger, LogDrain), &'static str> {
-        LOG_CREATE.increment();
-        LOG_CURR.increment();
+        metrics! {
+            LOG_CREATE.increment();
+            LOG_CURR.increment();
+        }
+
         if let Some(output) = self.output {
             let log_filled = Queue::with_capacity(self.log_queue_depth);
             let log_cleared = Queue::with_capacity(self.log_queue_depth);
@@ -189,7 +208,10 @@ impl LogBuilder {
             };
             Ok((logger, log_handle))
         } else {
-            LOG_CREATE_EX.increment();
+            metrics! {
+                LOG_CREATE_EX.increment();
+            }
+
             Err("no output configured")
         }
     }
@@ -208,7 +230,9 @@ impl LogBuilder {
 
 impl Drop for Logger {
     fn drop(&mut self) {
-        LOG_DESTROY.increment();
-        LOG_CURR.decrement();
+        metrics! {
+            LOG_DESTROY.increment();
+            LOG_CURR.decrement();
+        }
     }
 }

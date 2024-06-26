@@ -32,10 +32,13 @@ impl Log for SamplingLogger {
         let count = self.counter.fetch_add(1, Ordering::Relaxed);
 
         // if this is the Nth message, we should log it
+        #[allow(clippy::needless_else)]
         if (count % self.sample) == 0 {
             self.logger.log(record)
         } else {
-            LOG_SKIP.increment();
+            metrics! {
+                LOG_SKIP.increment();
+            }
         }
     }
 
