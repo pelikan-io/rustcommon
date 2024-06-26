@@ -37,6 +37,8 @@
 pub use log::*;
 
 mod format;
+#[macro_use]
+mod macros;
 mod multi;
 mod nop;
 mod outputs;
@@ -80,20 +82,4 @@ impl RingLog {
             .expect("failed to start logger");
         self.drain
     }
-}
-
-#[macro_export]
-macro_rules! fatal {
-    () => (
-        error!();
-        std::process::exit(1);
-        );
-    ($fmt:expr) => (
-        error!($fmt);
-        std::process::exit(1);
-        );
-    ($fmt:expr, $($arg:tt)*) => (
-        error!($fmt, $($arg)*);
-        std::process::exit(1);
-        );
 }

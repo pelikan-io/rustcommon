@@ -81,14 +81,16 @@ impl File {
     /// file. When the size of the live log is exceeded, it will automatically
     /// be rotated to the backup path.
     pub fn new<T: AsRef<Path>>(active: T, backup: T, max_size: u64) -> Result<Self, Error> {
-        #[cfg(feature = "metrics")]
-        LOG_OPEN.increment();
+        metrics! {
+            LOG_OPEN.increment();
+        }
 
         let file = match std::fs::File::create(active.as_ref()) {
             Ok(f) => f,
             Err(e) => {
-                #[cfg(feature = "metrics")]
-                LOG_OPEN_EX.increment();
+                metrics! {
+                    LOG_OPEN_EX.increment();
+                }
 
                 return Err(e);
             }
@@ -116,14 +118,16 @@ impl File {
 
             // create a new file for the live log
 
-            #[cfg(feature = "metrics")]
-            LOG_OPEN.increment();
+            metrics! {
+                LOG_OPEN.increment();
+            }
 
             let file = match std::fs::File::create(&self.active) {
                 Ok(f) => f,
                 Err(e) => {
-                    #[cfg(feature = "metrics")]
-                    LOG_OPEN_EX.increment();
+                    metrics! {
+                        LOG_OPEN_EX.increment();
+                    }
 
                     return Err(e);
                 }
