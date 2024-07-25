@@ -9,7 +9,7 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-mio = "0.8.5"
+mio = "0.8.11"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.139"
