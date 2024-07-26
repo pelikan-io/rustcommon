@@ -15,4 +15,4 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 
 [dev-dependencies]
-mio = { version = "0.8.5", features = ["os-poll"]}
+mio = { version = "0.8.11", features = ["os-poll"]}
