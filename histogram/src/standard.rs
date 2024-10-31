@@ -306,6 +306,7 @@ mod tests {
     use super::*;
     use rand::Rng;
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn size() {
         assert_eq!(std::mem::size_of::<Histogram>(), 48);
