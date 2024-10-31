@@ -183,6 +183,11 @@ impl Ratelimiter {
         self.available.load(Ordering::Relaxed)
     }
 
+    /// Returns the time of the next refill.
+    pub fn next_refill(&self) -> Instant {
+        self.refill_at.load(Ordering::Relaxed)
+    }
+
     /// Sets the number of tokens available to some amount. Returns an error if
     /// the amount exceeds the bucket capacity.
     pub fn set_available(&self, amount: u64) -> Result<(), Error> {
@@ -472,9 +477,15 @@ mod tests {
             .unwrap();
 
         std::thread::sleep(Duration::from_millis(10));
+        assert!(rl.next_refill() < clocksource::precise::Instant::now());
+
         assert!(rl.try_wait().is_ok());
         assert!(rl.try_wait().is_err());
         assert!(rl.dropped() >= 8);
+        assert!(rl.next_refill() >= clocksource::precise::Instant::now());
+
+        std::thread::sleep(Duration::from_millis(5));
+        assert!(rl.next_refill() < clocksource::precise::Instant::now());
     }
 
     // quick test that capacity acts as expected
