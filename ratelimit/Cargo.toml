@@ -5,7 +5,7 @@ authors = ["Brian Martin <brian@pelikan.io>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "A simple ratelimiter that can be shared between threads"
-homepage = "https://github.com/pelikan-io/rustcommon/ratelimit"
+homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
