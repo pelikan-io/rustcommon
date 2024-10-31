@@ -81,6 +81,7 @@ impl AtomicHistogram {
 mod test {
     use crate::*;
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn size() {
         assert_eq!(std::mem::size_of::<AtomicHistogram>(), 48);

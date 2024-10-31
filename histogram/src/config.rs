@@ -206,6 +206,7 @@ impl Config {
 mod tests {
     use super::*;
 
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn sizes() {
         assert_eq!(std::mem::size_of::<Config>(), 32);
