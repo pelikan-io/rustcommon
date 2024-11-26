@@ -22,4 +22,6 @@ pub enum Error {
     Underflow,
     #[error("the histogram is not a subset")]
     InvalidSubset,
+    #[error("the bucket index and count vectors must have the same length")]
+    LengthMismatch,
 }
