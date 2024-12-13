@@ -48,8 +48,8 @@
 //!            std::thread::sleep(sleep);
 //!            continue;
 //!     }
-//!     
-//!     // do some ratelimited action here    
+//!
+//!     // do some ratelimited action here
 //! }
 //! ```
 
@@ -268,6 +268,20 @@ impl Ratelimiter {
     /// token has been acquired. On failure, a `Duration` hinting at when the
     /// next refill would occur is returned.
     pub fn try_wait(&self) -> Result<(), core::time::Duration> {
+        self.try_wait_impl(1)
+    }
+
+    /// This is like `try_wait()` but allows acquiring multiple tokens at once.
+    /// On success, the specified number of tokens have been acquired. On failure,
+    /// a `Duration` hinting at when the next refill would occur is returned.
+    ///
+    /// # Arguments
+    /// * `tokens` - The number of tokens to attempt to acquire
+    pub fn try_wait_n(&self, tokens: u64) -> Result<(), core::time::Duration> {
+        self.try_wait_impl(tokens)
+    }
+
+    fn try_wait_impl(&self, tokens: u64) -> Result<(), core::time::Duration> {
         // We have an outer loop that drives the refilling of the token bucket.
         // This will only be repeated if we refill successfully, but somebody
         // else takes the newly available token(s) before we can attempt to
@@ -305,7 +319,7 @@ impl Ratelimiter {
                 // Note: this is when it matters if the refill was successful.
                 // We use the success or failure to determine if there was a
                 // race.
-                if available == 0 {
+                if available < tokens {
                     match refill_result {
                         Ok(_) => {
                             // This means we raced. Refill succeeded but another
@@ -325,7 +339,7 @@ impl Ratelimiter {
                 // If we made it here, available is > 0 and so we can attempt to
                 // acquire a token by doing a simple compare exchange on
                 // available with the new value.
-                let new = available - 1;
+                let new = available - tokens;
 
                 if self
                     .available
@@ -509,5 +523,37 @@ mod tests {
         assert!(rl.try_wait().is_ok());
         assert!(rl.try_wait().is_ok());
         assert!(rl.try_wait().is_err());
+    }
+
+    #[test]
+    pub fn wait_n() {
+        // Create a ratelimiter with burst capacity of 5 tokens
+        let rl = Ratelimiter::builder(5, Duration::from_millis(100))
+            .max_tokens(5)
+            .initial_available(5) // Start with full capacity
+            .build()
+            .unwrap();
+
+        // Should be able to acquire 3 tokens at once
+        assert!(rl.try_wait_n(3).is_ok());
+        // Should have 2 tokens remaining
+        assert_eq!(rl.available(), 2);
+
+        // Should be able to acquire 2 tokens
+        assert!(rl.try_wait_n(2).is_ok());
+        // Should have 0 tokens remaining
+        assert_eq!(rl.available(), 0);
+
+        // Should fail to acquire 1 token when none are available
+        assert!(rl.try_wait_n(1).is_err());
+
+        // Wait for a refill
+        std::thread::sleep(Duration::from_millis(100));
+
+        // Should be able to acquire 5 tokens after refill
+        assert!(rl.try_wait_n(5).is_ok());
+
+        // Should fail to acquire more tokens than max capacity
+        assert!(rl.try_wait_n(6).is_err());
     }
 }
