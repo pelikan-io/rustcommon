@@ -246,6 +246,14 @@ impl Histogram {
         Ok(result)
     }
 
+    /// Returns an interator across the histogram.
+    pub fn iter(&self) -> Iter {
+        Iter {
+            index: 0,
+            histogram: self,
+        }
+    }
+
     /// Returns the bucket configuration of the histogram.
     pub fn config(&self) -> Config {
         self.config
@@ -270,7 +278,7 @@ pub struct Iter<'a> {
     histogram: &'a Histogram,
 }
 
-impl<'a> Iterator for Iter<'a> {
+impl Iterator for Iter<'_> {
     type Item = Bucket;
 
     fn next(&mut self) -> Option<<Self as std::iter::Iterator>::Item> {
