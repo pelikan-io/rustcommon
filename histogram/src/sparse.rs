@@ -159,11 +159,11 @@ impl SparseHistogram {
                 return Err(Error::InvalidPercentile);
             }
         }
-
-        let total: u128 = self.count.iter().map(|v| *v as u128).sum();
+        // get the total count
+        let total_count: u128 = self.count.iter().map(|v| *v as u128).sum();
 
         // empty histogram, no percentiles available
-        if total == 0 {
+        if total_count == 0 {
             return Ok(None);
         }
 
@@ -171,27 +171,42 @@ impl SparseHistogram {
         let mut percentiles = percentiles.to_vec();
         percentiles.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        let searches: Vec<usize> = percentiles
-            .iter()
-            .map(|p| ((total as f64) * *p / 100.0).ceil() as usize)
-            .collect();
-        let mut search_idx = 0;
-        let mut result: Vec<(f64, Bucket)> = Vec::with_capacity(percentiles.len());
+        let mut idx = 0;
+        let mut partial_sum = self.count[0] as u128;
 
-        let mut seen: usize = 0;
-        for (idx, count) in self.index.iter().zip(self.count.iter()) {
-            seen += *count as usize;
-            while search_idx < searches.len() && seen >= searches[search_idx] {
-                result.push((
-                    percentiles[search_idx],
-                    Bucket {
-                        count: *count,
-                        range: self.config.index_to_range(*idx),
-                    },
-                ));
-                search_idx += 1;
-            }
-        }
+        let result: Vec<(f64, Bucket)> = percentiles
+            .iter()
+            .filter_map(|percentile| {
+                // For 0.0th percentile (min) we need to report the first bucket
+                // with a non-zero count.
+                let count =
+                    std::cmp::max(1, (percentile / 100.0 * total_count as f64).ceil() as u128);
+
+                loop {
+                    // found the matching bucket index for this percentile
+                    if partial_sum >= count {
+                        return Some((
+                            *percentile,
+                            Bucket {
+                                count: self.count[idx],
+                                range: self.config.index_to_range(self.index[idx]),
+                            },
+                        ));
+                    }
+
+                    // check if we have reached the end of the buckets
+                    if idx == (self.index.len() - 1) {
+                        break;
+                    }
+
+                    // otherwise, increment the index, partial sum, and loop
+                    idx += 1;
+                    partial_sum += self.count[idx] as u128;
+                }
+
+                None
+            })
+            .collect();
 
         Ok(Some(result))
     }
@@ -440,6 +455,23 @@ mod tests {
             hstandard.percentiles(&percentiles).unwrap(),
             hsparse.percentiles(&percentiles).unwrap()
         );
+    }
+
+    #[test]
+    // Tests percentile used to find min
+    fn min() {
+        let mut histogram = Histogram::new(7, 64).unwrap();
+
+        let h = SparseHistogram::from(&histogram);
+        assert_eq!(h.percentile(0.0).unwrap(), None);
+
+        let _ = histogram.increment(10);
+        let h = SparseHistogram::from(&histogram);
+        assert_eq!(h.percentile(0.0).map(|b| b.unwrap().end()), Ok(10));
+
+        let _ = histogram.increment(4);
+        let h = SparseHistogram::from(&histogram);
+        assert_eq!(h.percentile(0.0).map(|b| b.unwrap().end()), Ok(4));
     }
 
     fn compare_histograms(hstandard: &Histogram, hsparse: &SparseHistogram) {

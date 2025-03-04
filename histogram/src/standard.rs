@@ -102,7 +102,10 @@ impl Histogram {
         let result: Vec<(f64, Bucket)> = percentiles
             .iter()
             .filter_map(|percentile| {
-                let count = (percentile / 100.0 * total_count as f64).ceil() as u128;
+                // For 0.0th percentile (min) we need to report the first bucket
+                // with a non-zero count.
+                let count =
+                    std::cmp::max(1, (percentile / 100.0 * total_count as f64).ceil() as u128);
 
                 loop {
                     // found the matching bucket index for this percentile
@@ -348,6 +351,7 @@ mod tests {
                 }))
             );
         }
+        assert_eq!(histogram.percentile(0.0).map(|b| b.unwrap().end()), Ok(0));
         assert_eq!(histogram.percentile(25.0).map(|b| b.unwrap().end()), Ok(25));
         assert_eq!(histogram.percentile(50.0).map(|b| b.unwrap().end()), Ok(50));
         assert_eq!(histogram.percentile(75.0).map(|b| b.unwrap().end()), Ok(75));
@@ -382,6 +386,20 @@ mod tests {
                 range: 1024..=1031,
             }))
         );
+    }
+
+    #[test]
+    // Tests percentile used to find min
+    fn min() {
+        let mut histogram = Histogram::new(7, 64).unwrap();
+
+        assert_eq!(histogram.percentile(0.0).unwrap(), None);
+
+        let _ = histogram.increment(10);
+        assert_eq!(histogram.percentile(0.0).map(|b| b.unwrap().end()), Ok(10));
+
+        let _ = histogram.increment(4);
+        assert_eq!(histogram.percentile(0.0).map(|b| b.unwrap().end()), Ok(4));
     }
 
     #[test]
