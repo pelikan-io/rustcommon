@@ -287,7 +287,7 @@ pub struct Iter<'a> {
     histogram: &'a SparseHistogram,
 }
 
-impl<'a> Iterator for Iter<'a> {
+impl Iterator for Iter<'_> {
     type Item = Bucket;
 
     fn next(&mut self) -> Option<<Self as std::iter::Iterator>::Item> {
