@@ -187,6 +187,15 @@ impl LogBuilder {
             LOG_CURR.increment();
         }
 
+        if self.log_queue_depth == 0 {
+            metrics! {
+                LOG_CREATE_EX.increment();
+                LOG_CURR.decrement();
+            }
+
+            return Err("log queue depth must be greater than zero");
+        }
+
         if let Some(output) = self.output {
             let log_filled = Queue::with_capacity(self.log_queue_depth);
             let log_cleared = Queue::with_capacity(self.log_queue_depth);
@@ -210,6 +219,7 @@ impl LogBuilder {
         } else {
             metrics! {
                 LOG_CREATE_EX.increment();
+                LOG_CURR.decrement();
             }
 
             Err("no output configured")
