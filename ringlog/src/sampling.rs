@@ -102,6 +102,9 @@ impl SamplingLogBuilder {
 
     /// Consumes the builder and returns a configured `SamplingLogger` and `LogDrain`.
     pub(crate) fn build_raw(self) -> Result<(SamplingLogger, LogDrain), &'static str> {
+        if self.sample == 0 {
+            return Err("sample cannot be zero");
+        }
         let (logger, log_handle) = self.log_builder.build_raw()?;
         let logger = SamplingLogger {
             logger,
