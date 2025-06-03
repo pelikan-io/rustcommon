@@ -116,16 +116,25 @@ mod eventfd {
         }
 
         fn reset(&self) -> Result<()> {
-            match (&self.inner).write(&[0, 0, 0, 0, 0, 0, 0, 0]) {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    if e.kind() == ErrorKind::WouldBlock {
-                        // we can ignore wouldblock during reset
-                        Ok(())
-                    } else {
-                        Err(e)
-                    }
+            let mut buf = [0u8; 8];
+            let ret = unsafe {
+                libc::read(
+                    self.inner.as_raw_fd(),
+                    buf.as_mut_ptr() as *mut libc::c_void,
+                    buf.len(),
+                )
+            };
+
+            if ret < 0 {
+                let e = std::io::Error::last_os_error();
+                if e.kind() == ErrorKind::WouldBlock {
+                    // we can ignore wouldblock during reset
+                    Ok(())
+                } else {
+                    Err(e)
                 }
+            } else {
+                Ok(())
             }
         }
     }
