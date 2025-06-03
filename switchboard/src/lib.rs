@@ -81,7 +81,6 @@ pub enum Error {
     ZeroCapacity,
 }
 
-
 /// The `Queues` type allows sending items of one type, and receiving items of
 /// another type. This allows for bi-directional communication between threads
 /// where a transformation of the messages from one type to another may be
@@ -293,7 +292,7 @@ impl<T> TrackedItem<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Queues, Waker, Error};
+    use crate::{Error, Queues, Waker};
     use mio::Waker as MioWaker;
     use mio::{Poll, Token};
     use std::sync::Arc;
