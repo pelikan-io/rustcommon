@@ -12,6 +12,7 @@ use rand::Rng as RandRng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use std::sync::Arc;
+use thiserror::Error;
 
 /// A struct for sending and receiving items by using very simple routing. This
 /// allows for us to send messages to a specific receiver, to any receiver, or
@@ -69,6 +70,18 @@ impl<T> WakingSender<T> {
     }
 }
 
+/// Errors that can occur when constructing `Queues`.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum Error {
+    #[error("Queues::new requires at least one waker for side A")]
+    EmptyAWakers,
+    #[error("Queues::new requires at least one waker for side B")]
+    EmptyBWakers,
+    #[error("Queues::new requires capacity > 0")]
+    ZeroCapacity,
+}
+
+
 /// The `Queues` type allows sending items of one type, and receiving items of
 /// another type. This allows for bi-directional communication between threads
 /// where a transformation of the messages from one type to another may be
@@ -103,7 +116,17 @@ impl<T, U> Queues<T, U> {
         a_wakers: A,
         b_wakers: B,
         capacity: usize,
-    ) -> (Vec<Queues<T, U>>, Vec<Queues<U, T>>) {
+    ) -> std::result::Result<(Vec<Queues<T, U>>, Vec<Queues<U, T>>), Error> {
+        if a_wakers.as_ref().is_empty() {
+            return Err(Error::EmptyAWakers);
+        }
+        if b_wakers.as_ref().is_empty() {
+            return Err(Error::EmptyBWakers);
+        }
+        if capacity == 0 {
+            return Err(Error::ZeroCapacity);
+        }
+
         let mut a_wakers = a_wakers.as_ref().to_vec();
         let mut b_wakers = b_wakers.as_ref().to_vec();
 
@@ -170,7 +193,7 @@ impl<T, U> Queues<T, U> {
             })
         }
 
-        (a, b)
+        Ok((a, b))
     }
 
     /// Try to receive a single item from the queue. Returns a `TrackedItem<T>`
@@ -270,7 +293,7 @@ impl<T> TrackedItem<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Queues, Waker};
+    use crate::{Queues, Waker, Error};
     use mio::Waker as MioWaker;
     use mio::{Poll, Token};
     use std::sync::Arc;
@@ -287,7 +310,7 @@ mod tests {
         let a_wakers = vec![waker.clone()];
         let b_wakers = vec![waker];
 
-        let (mut a, mut b) = Queues::<usize, String>::new(&a_wakers, &b_wakers, 1024);
+        let (mut a, mut b) = Queues::<usize, String>::new(&a_wakers, &b_wakers, 1024).unwrap();
         let mut a = a.remove(0);
         let mut b = b.remove(0);
 
@@ -365,5 +388,46 @@ mod tests {
             a.try_recv().map(|v| (v.sender(), v.into_inner())),
             Some((0, "orange".to_string()))
         );
+    }
+
+    #[test]
+    fn new_error_empty_a_wakers() {
+        let a: Vec<Arc<Waker>> = Vec::new();
+        let waker = Arc::new(Waker::from(
+            MioWaker::new(Poll::new().unwrap().registry(), WAKER_TOKEN).unwrap(),
+        ));
+        let b = vec![waker];
+        assert!(matches!(
+            Queues::<usize, usize>::new(&a, &b, 1),
+            Err(Error::EmptyAWakers)
+        ));
+    }
+
+    #[test]
+    fn new_error_empty_b_wakers() {
+        let poll = Poll::new().expect("failed to create event loop");
+        let waker = Arc::new(Waker::from(
+            MioWaker::new(poll.registry(), WAKER_TOKEN).expect("failed to create waker"),
+        ));
+        let a = vec![waker];
+        let b: Vec<Arc<Waker>> = Vec::new();
+        assert!(matches!(
+            Queues::<usize, usize>::new(&a, &b, 1),
+            Err(Error::EmptyBWakers)
+        ));
+    }
+
+    #[test]
+    fn new_error_zero_capacity() {
+        let poll = Poll::new().expect("failed to create event loop");
+        let waker = Arc::new(Waker::from(
+            MioWaker::new(poll.registry(), WAKER_TOKEN).expect("failed to create waker"),
+        ));
+        let a = vec![waker.clone()];
+        let b = vec![waker];
+        assert!(matches!(
+            Queues::<usize, usize>::new(&a, &b, 0),
+            Err(Error::ZeroCapacity)
+        ));
     }
 }
