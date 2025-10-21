@@ -9,7 +9,7 @@
 //! * efficient runtime
 //!
 //! # Background
-//! Please see: <https://observablehq.com/@iopsystems/h2histogram>
+//! Please see: <https://h2histogram.org>
 
 mod atomic;
 mod bucket;
