@@ -107,7 +107,7 @@ impl Config {
         let max = if max_value_power == 64 {
             u64::MAX
         } else {
-            2_u64.pow(max_value_power as u32)
+            2_u64.pow(max_value_power as u32) - 1
         };
 
         let lower_bin_count = (cutoff_value / lower_bin_width as u64) as u32;
