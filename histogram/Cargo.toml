@@ -1,6 +1,6 @@
 [package]
 name = "histogram"
-version = "0.11.4"
+version = "0.11.5"
 edition = "2021"
 authors = ["Brian Martin <brian@pelikan.io>"]
 license = "MIT OR Apache-2.0"
@@ -9,13 +9,13 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-schemars = { version = "0.8", optional = true }
-serde = { version = "1.0.144", features = ["derive"], optional = true }
-thiserror = "1.0.47"
+schemars = { version = "1.2", optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
+thiserror = "2.0"
 
 [dev-dependencies]
-criterion = "0.5.1"
-rand = "0.8.5"
+criterion = "0.8"
+rand = "0.10"
 
 [features]
 schemars = ["dep:schemars", "serde"]

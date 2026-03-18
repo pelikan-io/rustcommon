@@ -331,7 +331,7 @@ impl From<&Histogram> for SparseHistogram {
 
 #[cfg(test)]
 mod tests {
-    use rand::Rng;
+    use rand::RngExt;
     use std::collections::HashMap;
 
     use super::*;
@@ -506,11 +506,11 @@ mod tests {
     #[test]
     fn downsample() {
         let mut histogram = Histogram::new(8, 32).unwrap();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Generate 10,000 values to store in a sorted array and a histogram
         for _ in 0..10000 {
-            let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
+            let v: u64 = rng.random_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
             let _ = histogram.increment(v);
         }
 

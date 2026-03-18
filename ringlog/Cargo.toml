@@ -1,6 +1,6 @@
 [package]
 name = "ringlog"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Brian Martin <brian@pelikan.io>"]
@@ -9,9 +9,9 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-ahash = "0.8.0"
+ahash = "0.8.12"
 clocksource = { version = "0.8.0", path = "../clocksource" }
-log = { version = "0.4.17", features = ["std"] }
+log = { version = "0.4.29", features = ["std"] }
 metriken = { version = "0.7.0", optional = true }
 mpmc = "0.1.6"
 

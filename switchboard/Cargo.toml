@@ -1,6 +1,6 @@
 [package]
 name = "switchboard"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Brian Martin <brian@pelikan.io>"]
@@ -9,11 +9,11 @@ homepage = "https://github.com/pelikan-io/rustcommon"
 repository = "https://github.com/pelikan-io/rustcommon"
 
 [dependencies]
-awaken = { version = "0.2.0", path = "../awaken" }
-crossbeam-queue = "0.3.8"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-thiserror = "1.0"
+awaken = { version = "0.3.0", path = "../awaken" }
+crossbeam-queue = "0.3.12"
+rand = "0.10"
+rand_chacha = "0.10"
+thiserror = "2.0"
 
 [dev-dependencies]
-mio = { version = "0.8.11", features = ["os-poll"]}
+mio = { version = "1.1", features = ["os-poll"]}

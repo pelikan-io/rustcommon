@@ -7,9 +7,8 @@
 pub use awaken::Waker;
 
 use crossbeam_queue::*;
-use rand::distributions::Uniform;
-use rand::Rng as RandRng;
-use rand::SeedableRng;
+use rand::distr::Uniform;
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use std::sync::Arc;
 use thiserror::Error;
@@ -176,8 +175,8 @@ impl<T, U> Queues<T, U> {
             a.push(Queues {
                 senders: a_tx.clone(),
                 receiver,
-                rng: ChaCha20Rng::from_entropy(),
-                distr: Uniform::new(0, a_tx.len()),
+                rng: ChaCha20Rng::from_rng(&mut rand::rng()),
+                distr: Uniform::new(0, a_tx.len()).unwrap(),
                 id,
             })
         }
@@ -186,8 +185,8 @@ impl<T, U> Queues<T, U> {
             b.push(Queues {
                 senders: b_tx.clone(),
                 receiver,
-                rng: ChaCha20Rng::from_entropy(),
-                distr: Uniform::new(0, b_tx.len()),
+                rng: ChaCha20Rng::from_rng(&mut rand::rng()),
+                distr: Uniform::new(0, b_tx.len()).unwrap(),
                 id,
             })
         }
@@ -223,7 +222,7 @@ impl<T, U> Queues<T, U> {
                 sender: self.id,
                 inner: item,
             })
-            .map_err(|e| e.into_inner())
+            .map_err(|e: TrackedItem<T>| e.into_inner())
     }
 
     /// Try to send a single item to any receiver. Uses a uniform random
@@ -240,7 +239,7 @@ impl<T, U> Queues<T, U> {
                 sender: self.id,
                 inner: item,
             })
-            .map_err(|e| e.into_inner())
+            .map_err(|e: TrackedItem<T>| e.into_inner())
     }
 
     /// Wake any remote receivers which have been sent items since the last time

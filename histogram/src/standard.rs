@@ -250,7 +250,7 @@ impl Histogram {
     }
 
     /// Returns an interator across the histogram.
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             index: 0,
             histogram: self,
@@ -315,7 +315,7 @@ impl From<&SparseHistogram> for Histogram {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
+    use rand::RngExt;
 
     #[cfg(target_pointer_width = "64")]
     #[test]
@@ -408,11 +408,11 @@ mod tests {
     fn downsample() {
         let mut histogram = Histogram::new(8, 32).unwrap();
         let mut vals: Vec<u64> = Vec::with_capacity(10000);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Generate 10,000 values to store in a sorted array and a histogram
         for _ in 0..vals.capacity() {
-            let v: u64 = rng.gen_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
+            let v: u64 = rng.random_range(1..2_u64.pow(histogram.config.max_value_power() as u32));
             vals.push(v);
             let _ = histogram.increment(v);
         }
