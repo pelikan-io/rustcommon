@@ -1,37 +1,28 @@
-# rustcommon
+# rustcommon [DEPRECATED]
 
-rustcommon is a collection of common libraries we use in our Rust projects. This
-includes datastructures, logging, metrics, timers, and ratelimiting.
+> **This repository is deprecated and no longer maintained.**
 
-## Overview
+rustcommon was a collection of common libraries used in Rust projects such as
+Pelikan, rpc-perf, and Rezolus.
 
-rustcommon is a workspace repository which contains several crates (libraries)
-which act as foundational libraries for other Rust projects, such as Pelikan,
-rpc-perf, and Rezolus.
+## Successor Projects
 
-Each crate within this repository contains its own readme and changelog
-detailing the purpose and history of the library.
+The following crates have been superseded by actively maintained replacements:
 
-## Getting Started
+| Crate | Successor |
+|-------|-----------|
+| `clocksource` | [iopsystems/clocksource](https://github.com/iopsystems/clocksource) |
+| `histogram` | [iopsystems/histogram](https://github.com/iopsystems/histogram) |
+| `ratelimit` | [iopsystems/ratelimit](https://github.com/iopsystems/ratelimit) |
 
-### Building
+## Deprecated (No Successor)
 
-rustcommon is built with the standard Rust toolchain which can be installed and
-managed via [rustup](https://rustup.rs) or by following the directions on the
-Rust [website](https://www.rust-lang.org/).
+The following crates are deprecated with no replacement:
 
-#### Clone and build rustcommon from source
-```bash
-git clone https://github.com/pelikan-io/rustcommon
-cd rustcommon
-
-# run tests
-cargo test --all
-```
-
-## Support
-
-Create a [new issue](https://github.com/pelikan-io/rustcommon/issues/new) on GitHub.
+- `awaken`
+- `ringlog`
+- `switchboard`
+- `waterfall`
 
 ## Authors
 
